@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -16,7 +20,17 @@ export class UserService {
   async findById(id: string) {
     const user = await this.userRepository.findOne({
       where: { id },
-      select: ['id', 'email', 'name', 'bio', 'kycStatus', 'kycDocumentUrl', 'createdAt', 'updatedAt'],
+      select: [
+        'id',
+        'email',
+        'name',
+        'bio',
+        'publicKey',
+        'kycStatus',
+        'kycDocumentUrl',
+        'createdAt',
+        'updatedAt',
+      ],
     });
 
     if (!user) {
@@ -54,6 +68,39 @@ export class UserService {
 
     // Return with only selected fields to match old behavior
     return this.findById(savedUser.id);
+  }
+
+  /**
+   * Cryptographically link a Stellar wallet address to an existing email account.
+   *
+   * Guards:
+   *  - The requesting user must exist.
+   *  - The `publicKey` must not already be claimed by **any** account (including the caller's).
+   *    Linking the same key twice returns a clear conflict rather than a silent no-op.
+   */
+  async linkWallet(userId: string, publicKey: string): Promise<User> {
+    // Verify caller exists
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Prevent duplicate wallet addresses across the entire users table
+    const existingOwner = await this.findByPublicKey(publicKey);
+    if (existingOwner) {
+      if (existingOwner.id === userId) {
+        throw new ConflictException(
+          'This wallet address is already linked to your account',
+        );
+      }
+      throw new ConflictException(
+        'This wallet address is already linked to another account',
+      );
+    }
+
+    await this.userRepository.update(userId, { publicKey });
+
+    return this.findById(userId);
   }
 
   async updateAvatar(userId: string, avatarUrl: string) {
@@ -106,3 +153,4 @@ export class UserService {
     return { message: 'User deleted successfully' };
   }
 }
+
