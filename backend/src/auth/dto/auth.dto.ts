@@ -1,5 +1,6 @@
 import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsStellarPublicKey } from '../../common/validators/is-stellar-key.validator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'alice@example.com' })
@@ -29,13 +30,13 @@ export class LoginDto {
 
 export class GetNonceDto {
   @ApiProperty({ example: 'GABC...' })
-  @IsString()
+  @IsStellarPublicKey()
   publicKey: string;
 }
 
 export class VerifySignatureDto {
   @ApiProperty({ example: 'GABC...' })
-  @IsString()
+  @IsStellarPublicKey()
   publicKey: string;
 
   @ApiProperty({ description: 'Hex-encoded Ed25519 signature over the nonce' })
@@ -59,7 +60,7 @@ export class LinkWalletDto {
     example: 'GABC1234...',
     description: 'Stellar G... public key to link to the authenticated account',
   })
-  @IsString()
+  @IsStellarPublicKey()
   publicKey: string;
 
   @ApiProperty({
