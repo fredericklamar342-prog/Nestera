@@ -11,8 +11,30 @@ import {
   UserSubscription,
   SubscriptionStatus,
 } from './entities/user-subscription.entity';
+import {
+  SavingsGoal,
+  SavingsGoalStatus,
+} from './entities/savings-goal.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { User } from '../user/entities/user.entity';
+import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
+
+export interface SavingsGoalProgress {
+  id: string;
+  userId: string;
+  goalName: string;
+  targetAmount: number;
+  targetDate: Date;
+  status: SavingsGoalStatus;
+  metadata: SavingsGoal['metadata'];
+  createdAt: Date;
+  updatedAt: Date;
+  currentBalance: number;
+  percentageComplete: number;
+}
+
+const STROOPS_PER_XLM = 10_000_000;
 
 @Injectable()
 export class SavingsService {
@@ -23,6 +45,11 @@ export class SavingsService {
     private readonly productRepository: Repository<SavingsProduct>,
     @InjectRepository(UserSubscription)
     private readonly subscriptionRepository: Repository<UserSubscription>,
+    @InjectRepository(SavingsGoal)
+    private readonly goalRepository: Repository<SavingsGoal>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly blockchainSavingsService: BlockchainSavingsService,
   ) {}
 
   async createProduct(dto: CreateProductDto): Promise<SavingsProduct> {
@@ -103,5 +130,79 @@ export class SavingsService {
       where: { userId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async findMyGoals(userId: string): Promise<SavingsGoalProgress[]> {
+    const [goals, user] = await Promise.all([
+      this.goalRepository.find({
+        where: { userId },
+        order: { createdAt: 'DESC' },
+      }),
+      this.userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'publicKey'],
+      }),
+    ]);
+
+    if (!goals.length) {
+      return [];
+    }
+
+    const liveVaultBalanceStroops = user?.publicKey
+      ? (await this.blockchainSavingsService.getUserSavingsBalance(user.publicKey))
+          .total
+      : 0;
+
+    return goals.map((goal) =>
+      this.mapGoalWithProgress(goal, liveVaultBalanceStroops),
+    );
+  }
+
+  private mapGoalWithProgress(
+    goal: SavingsGoal,
+    liveVaultBalanceStroops: number,
+  ): SavingsGoalProgress {
+    const targetAmount = Number(goal.targetAmount);
+    const currentBalance = this.stroopsToDecimal(liveVaultBalanceStroops);
+    const percentageComplete = this.calculatePercentageComplete(
+      liveVaultBalanceStroops,
+      targetAmount,
+    );
+
+    return {
+      id: goal.id,
+      userId: goal.userId,
+      goalName: goal.goalName,
+      targetAmount,
+      targetDate: goal.targetDate,
+      status: goal.status,
+      metadata: goal.metadata,
+      createdAt: goal.createdAt,
+      updatedAt: goal.updatedAt,
+      currentBalance,
+      percentageComplete,
+    };
+  }
+
+  private calculatePercentageComplete(
+    liveVaultBalanceStroops: number,
+    targetAmount: number,
+  ): number {
+    if (targetAmount <= 0) {
+      return 0;
+    }
+
+    const targetAmountStroops = Math.round(targetAmount * STROOPS_PER_XLM);
+    if (targetAmountStroops <= 0) {
+      return 0;
+    }
+
+    const percentage = (liveVaultBalanceStroops / targetAmountStroops) * 100;
+
+    return Math.max(0, Math.min(100, Math.round(percentage)));
+  }
+
+  private stroopsToDecimal(amountInStroops: number): number {
+    return Number((amountInStroops / STROOPS_PER_XLM).toFixed(2));
   }
 }

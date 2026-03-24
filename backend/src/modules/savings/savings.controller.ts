@@ -20,6 +20,7 @@ import { UserSubscription } from './entities/user-subscription.entity';
 import { SubscribeDto } from './dto/subscribe.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { SavingsGoalProgress } from './savings.service';
 
 @ApiTags('savings')
 @Controller('savings')
@@ -59,5 +60,24 @@ export class SavingsController {
     @CurrentUser() user: { id: string; email: string },
   ): Promise<UserSubscription[]> {
     return await this.savingsService.findMySubscriptions(user.id);
+  }
+
+  @Get('my-goals')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Get current user savings goals enriched with live Soroban balance progress',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'List of savings goals with current balance and percentage completion',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getMyGoals(
+    @CurrentUser() user: { id: string; email: string },
+  ): Promise<SavingsGoalProgress[]> {
+    return await this.savingsService.findMyGoals(user.id);
   }
 }
