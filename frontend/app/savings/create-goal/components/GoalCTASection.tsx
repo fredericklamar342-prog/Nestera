@@ -22,10 +22,13 @@ export default function GoalCTASection() {
             Set targets, track progress, and achieve your financial dreams with structured goal-based savings
           </p>
 
-          <button className="inline-flex items-center gap-2 px-4 py-4 bg-[#00D9C0] hover:bg-[#00b3a0] text-white font-semibold rounded-xl transition-all shadow-lg active:scale-95">
+          <a
+            href="#goal-form"
+            className="inline-flex items-center gap-2 px-4 py-4 bg-[#00D9C0] hover:bg-[#00b3a0] text-white font-semibold rounded-xl transition-all shadow-lg active:scale-95"
+          >
             Create Your First Goal
             <ChevronRight size={20} />
-          </button>
+          </a>
         </div>
       </div>
     </div>

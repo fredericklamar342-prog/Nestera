@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import GoalCTASection from './components/GoalCTASection';
+import GoalForm from './components/GoalForm';
 
 export default function CreateGoalPage() {
   return (
@@ -28,6 +29,7 @@ export default function CreateGoalPage() {
       </div>
 
       <GoalCTASection />
+      <GoalForm />
     </section>
   );
 }
