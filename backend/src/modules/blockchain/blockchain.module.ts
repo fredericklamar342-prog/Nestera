@@ -52,8 +52,9 @@ import { IndexerService } from './indexer.service';
     SavingsService,
     OracleService,
     StellarEventListenerService,
+    IndexerService,
     DepositHandler,
     YieldHandler,
   ],
 })
-export class BlockchainModule {}
+export class BlockchainModule { }
