@@ -1,13 +1,16 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  Account,
+  Address,
   Asset,
+  Contract,
   Horizon,
   Keypair,
   Networks,
   rpc,
   scValToNative,
-  Transaction,
+  TransactionBuilder,
   nativeToScVal,
   xdr,
 } from '@stellar/stellar-sdk';
@@ -125,47 +128,52 @@ export class StellarService implements OnModuleInit {
   /**
    * Invoke a read-only contract method and return the result
    * @param contractId - The Soroban contract ID
-   * @param method - The method name to invoke
+   * @param functionName - The method name to invoke
    * @param args - Optional arguments to pass to the method
-   * @returns The result from the contract method
+   * @returns The result from the contract method parsed to native JS primitives
    */
   async invokeContractRead(
     contractId: string,
-    method: string,
-    args?: unknown[],
-  ): Promise<unknown> {
+    functionName: string,
+    args: any[] = [],
+  ): Promise<any> {
     try {
       return await this.rpcClient.executeWithRetry(async (client) => {
         const rpcServer = client as rpc.Server;
 
-        // Build the method invocation arguments
-        const methodArg = nativeToScVal(method, { type: 'symbol' });
-        const argsArray = args ? args.map((arg) => nativeToScVal(arg)) : [];
+        // Create a dummy source account for simulation
+        const sourceAccount = new Account(Keypair.random().publicKey(), '0');
+        const contract = new Contract(contractId);
 
-        const storageKey = nativeToScVal(
-          ['invoke', contractId, methodArg, ...argsArray],
-          {
-            type: [
-              'symbol',
-              'address',
-              'symbol',
-              ...argsArray.map(() => 'unknown'),
-            ],
-          },
-        );
+        // Build a simulation transaction
+        const transaction = new TransactionBuilder(sourceAccount, {
+          fee: '100',
+          networkPassphrase: this.getNetworkPassphrase(),
+        })
+          .addOperation(
+            contract.call(
+              functionName,
+              ...args.map((arg) => nativeToScVal(arg)),
+            ),
+          )
+          .setTimeout(30)
+          .build();
 
-        const entry = await rpcServer.getContractData(
-          contractId,
-          storageKey,
-          rpc.Durability.Temporary,
-        );
+        const simulation = await rpcServer.simulateTransaction(transaction);
 
-        const rawValue = entry.val.contractData().val();
-        return scValToNative(rawValue);
+        if (rpc.Api.isSimulationError(simulation)) {
+          throw new Error(`Soroban simulation failed: ${simulation.error}`);
+        }
+
+        if (simulation.result) {
+          return scValToNative(simulation.result.retval);
+        }
+
+        return null;
       }, 'rpc');
     } catch (error) {
       this.logger.error(
-        `Failed to invoke contract read ${contractId}.${method}: ${(error as Error).message}`,
+        `Failed to invoke contract read ${contractId}.${functionName}: ${(error as Error).message}`,
         error,
       );
       throw error;

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { Keypair, nativeToScVal } from '@stellar/stellar-sdk';
+import { Keypair, nativeToScVal, rpc } from '@stellar/stellar-sdk';
 import { StellarService } from './stellar.service';
 import { TransactionDto } from './dto/transaction.dto';
 import { RpcClientWrapper } from './rpc-client.wrapper';
@@ -196,5 +196,35 @@ describe('StellarService', () => {
     await expect(
       service.getDelegationForUser(TEST_PUBLIC_KEY),
     ).resolves.toBeNull();
+  });
+
+  it('should successfully invoke a contract read and return native value', async () => {
+    const mockRetVal = 'mock_result';
+    jest
+      .spyOn(mockRpcClient, 'executeWithRetry')
+      .mockImplementation(async (operation) => {
+        const fakeRpcServer = {
+          simulateTransaction: jest.fn().mockResolvedValue({
+            result: {
+              retval: nativeToScVal(mockRetVal),
+            },
+          }),
+        };
+        return operation(fakeRpcServer as any);
+      });
+
+    // Mock rpc.Api.isSimulationError
+    const isSimulationErrorSpy = jest
+      .spyOn(rpc.Api, 'isSimulationError')
+      .mockReturnValue(false);
+
+    const result = await service.invokeContractRead(
+      'CCJZ5DGASBWQXR5MPFCJXMBI333XE5U3FSJTNQU7RIKE3P5GN2K2WYD5',
+      'get_value',
+      ['arg1'],
+    );
+
+    expect(result).toBe(mockRetVal);
+    isSimulationErrorSpy.mockRestore();
   });
 });
