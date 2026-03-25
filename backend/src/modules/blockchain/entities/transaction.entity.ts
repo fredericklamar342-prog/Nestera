@@ -8,7 +8,7 @@ import {
 
 export enum LedgerTransactionType {
   DEPOSIT = 'DEPOSIT',
-  WITHDRAW = 'WITHDRAW',
+  YIELD = 'YIELD',
 }
 
 @Entity('transactions')
@@ -38,6 +38,9 @@ export class LedgerTransaction {
 
   @Column({ type: 'bigint', nullable: true })
   ledgerSequence: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  poolId: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, unknown> | null;

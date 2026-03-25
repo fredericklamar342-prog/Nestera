@@ -1,7 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { HttpModule } from '@nestjs/axios';
+import { CacheModule } from '@nestjs/cache-manager';
 import { StellarService } from './stellar.service';
 import { SavingsService } from './savings.service';
+import { OracleService } from './oracle.service';
 import { BlockchainController } from './blockchain.controller';
 import { StellarEventListenerService } from './stellar-event-listener.service';
 import { StellarEventListenerController } from './stellar-event-listener.controller';
@@ -18,6 +21,11 @@ import { IndexerService } from './indexer.service';
 @Global()
 @Module({
   imports: [
+    HttpModule,
+    CacheModule.register({
+      ttl: 300, // 5 minutes default TTL
+      max: 100, // Maximum number of items in cache
+    }),
     TypeOrmModule.forFeature([
       ProcessedStellarEvent,
       MedicalClaim,
@@ -32,6 +40,7 @@ import { IndexerService } from './indexer.service';
   providers: [
     StellarService,
     SavingsService,
+    OracleService,
     StellarEventListenerService,
     IndexerService,
     DepositHandler,
@@ -39,6 +48,7 @@ import { IndexerService } from './indexer.service';
   exports: [
     StellarService,
     SavingsService,
+    OracleService,
     StellarEventListenerService,
     DepositHandler,
   ],

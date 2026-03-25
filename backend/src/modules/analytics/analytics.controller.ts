@@ -14,6 +14,7 @@ import {
 import { AnalyticsService } from './analytics.service';
 import { PortfolioTimelineQueryDto } from './dto/portfolio-timeline-query.dto';
 import { AssetAllocationDto } from './dto/asset-allocation.dto';
+import { YieldBreakdownDto } from './dto/yield-breakdown.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -76,5 +77,23 @@ export class AnalyticsController {
       );
     }
     return this.analyticsService.getAssetAllocation(user.publicKey);
+  }
+
+  @Get('yield-breakdown')
+  @ApiOperation({
+    summary: 'Get yield breakdown by savings pool',
+    description:
+      'Returns exact dollar amounts mapped to individual savings pools showing where the user is making money from yield.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Yield breakdown data by pool',
+    type: YieldBreakdownDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getYieldBreakdown(
+    @CurrentUser() user: { id: string },
+  ): Promise<YieldBreakdownDto> {
+    return this.analyticsService.getYieldBreakdown(user.id);
   }
 }
