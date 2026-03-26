@@ -8,6 +8,7 @@ import {
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DelegationResponseDto } from './dto/delegation-response.dto';
+import { VotingPowerResponseDto } from './dto/voting-power-response.dto';
 import { GovernanceService } from './governance.service';
 
 @ApiTags('governance')
@@ -32,5 +33,22 @@ export class GovernanceController {
     @CurrentUser() user: { id: string },
   ): Promise<DelegationResponseDto> {
     return this.governanceService.getUserDelegation(user.id);
+  }
+
+  @Get('voting-power')
+  @ApiOperation({
+    summary: 'Get the authenticated user voting power',
+    description:
+      'Returns the current NST token balance for the authenticated user, representing their voting power in the governance system.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Voting power lookup result',
+    type: VotingPowerResponseDto,
+  })
+  getVotingPower(
+    @CurrentUser() user: { id: string },
+  ): Promise<VotingPowerResponseDto> {
+    return this.governanceService.getUserVotingPower(user.id);
   }
 }

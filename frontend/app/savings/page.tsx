@@ -85,7 +85,7 @@ export default function GoalBasedSavingsPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-            className="rounded-2xl border border-white/5 bg-[#0f2c2c] p-6 shadow-[0_10px_24px_rgba(2,12,12,0.35)]"
+              className="rounded-2xl border border-white/5 bg-[#0f2c2c] p-6 shadow-[0_10px_24px_rgba(2,12,12,0.35)]"
             >
               <div className={stat.color}>
                 <stat.icon size={20} strokeWidth={2} />
@@ -179,6 +179,119 @@ export default function GoalBasedSavingsPage() {
               onViewDetails={() => console.log('View details', goal.id)}
               onOverflowAction={() => console.log('More actions', goal.id)}
             />
+          ))}
+        </div>
+      </div>
+
+      {/* Insights / Smart Recommendations Panel */}
+      <div className="w-full max-w-7xl mx-auto px-6 md:px-8 py-8">
+        <div className="rounded-2xl border border-white/10 bg-[#0f2c2c] p-6 shadow-[0_12px_30px_rgba(2,12,12,0.45)]">
+          <h3 className="text-lg font-semibold text-white mb-4">Smart Insights</h3>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-400/20">
+              <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
+                ⚠️
+              </div>
+              <div className="flex-1">
+                <p className="text-white text-sm font-medium">Emergency Fund Goal Behind Schedule</p>
+                <p className="text-[#6a8a93] text-xs mt-1">You're 15% behind your target. Consider increasing contributions.</p>
+                <a href="#" className="text-cyan-400 text-xs hover:text-cyan-300 mt-2 inline-block">Contribute Now →</a>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-emerald-500/10 border border-emerald-400/20">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                🎉
+              </div>
+              <div className="flex-1">
+                <p className="text-white text-sm font-medium">Great Progress on Travel Fund</p>
+                <p className="text-[#6a8a93] text-xs mt-1">You've saved 70% of your goal. Keep it up!</p>
+                <a href="#" className="text-cyan-400 text-xs hover:text-cyan-300 mt-2 inline-block">View Progress →</a>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-cyan-500/10 border border-cyan-400/20">
+              <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                💡
+              </div>
+              <div className="flex-1">
+                <p className="text-white text-sm font-medium">Yield Optimization Available</p>
+                <p className="text-[#6a8a93] text-xs mt-1">Switch to higher-yield options for better returns.</p>
+                <a href="#" className="text-cyan-400 text-xs hover:text-cyan-300 mt-2 inline-block">Learn More →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Contributions Table */}
+      <div className="w-full max-w-7xl mx-auto px-6 md:px-8 pb-16">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold text-white">Recent Contributions</h3>
+          <a href="#" className="text-cyan-400 hover:text-cyan-300 text-sm font-medium">View All →</a>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-[#0f2c2c] overflow-hidden shadow-[0_12px_30px_rgba(2,12,12,0.45)]">
+          <div className="grid grid-cols-5 px-6 py-3 border-b border-white/10 text-[#6a8a93] text-xs font-bold uppercase tracking-widest">
+            <div>Date</div>
+            <div>Goal Name</div>
+            <div>Type</div>
+            <div>Amount</div>
+            <div>Status</div>
+          </div>
+          {[
+            {
+              date: "2026-03-25",
+              goalName: "Emergency Fund",
+              type: "Auto",
+              amount: "+$150.00",
+              status: "Completed",
+              statusStyle: "bg-emerald-500/15 border-emerald-400/30 text-emerald-200",
+            },
+            {
+              date: "2026-03-24",
+              goalName: "Travel Fund",
+              type: "Manual",
+              amount: "+$200.00",
+              status: "Completed",
+              statusStyle: "bg-emerald-500/15 border-emerald-400/30 text-emerald-200",
+            },
+            {
+              date: "2026-03-23",
+              goalName: "New Laptop",
+              type: "Auto",
+              amount: "+$75.00",
+              status: "Pending",
+              statusStyle: "bg-amber-500/15 border-amber-400/30 text-amber-200",
+            },
+            {
+              date: "2026-03-22",
+              goalName: "Car Fund",
+              type: "Manual",
+              amount: "+$300.00",
+              status: "Completed",
+              statusStyle: "bg-emerald-500/15 border-emerald-400/30 text-emerald-200",
+            },
+            {
+              date: "2026-03-21",
+              goalName: "Education Fund",
+              type: "Auto",
+              amount: "+$100.00",
+              status: "Completed",
+              statusStyle: "bg-emerald-500/15 border-emerald-400/30 text-emerald-200",
+            },
+          ].map((contribution, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-5 px-6 py-4 border-b border-white/10 last:border-0 text-sm text-white hover:bg-white/5 transition-colors"
+            >
+              <div className="text-[#b1d7da]">{contribution.date}</div>
+              <div className="text-white font-medium">{contribution.goalName}</div>
+              <div className="text-[#6faab0]">{contribution.type}</div>
+              <div className="text-emerald-300 font-semibold">{contribution.amount}</div>
+              <div className="text-right">
+                <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold rounded-full border ${contribution.statusStyle}`}>
+                  {contribution.status}
+                </span>
+              </div>
+            </div>
           ))}
         </div>
       </div>

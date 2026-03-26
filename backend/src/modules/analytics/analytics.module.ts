@@ -8,10 +8,7 @@ import { ProcessedStellarEvent } from '../blockchain/entities/processed-event.en
 import { LedgerTransaction } from '../blockchain/entities/transaction.entity';
 
 @Module({
-  imports: [
-    BlockchainModule,
-    TypeOrmModule.forFeature([User, ProcessedStellarEvent, LedgerTransaction]),
-  ],
+  imports: [TypeOrmModule.forFeature([User, ProcessedStellarEvent])],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
   exports: [AnalyticsService],
