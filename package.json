@@ -12,8 +12,8 @@
   },
   "lint-staged": {
     "backend/src/**/*.{ts,tsx}": [
-      "cd backend && prettier --write",
-      "cd backend && eslint --fix"
+      "npx prettier --write backend/src/**/*.{ts,tsx}",
+      "npx eslint --fix backend/src/**/*.{ts,tsx}"
     ]
   },
   "dependencies": {
