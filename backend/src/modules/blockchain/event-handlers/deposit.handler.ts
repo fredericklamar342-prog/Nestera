@@ -141,7 +141,26 @@ export class DepositHandler {
 
     const first = topic[0];
     const normalized = this.toHex(first);
-    return normalized === DepositHandler.DEPOSIT_HASH_HEX;
+
+    // Some contracts emit the symbol 'Deposit' directly, others emit its SHA256 hash
+    // We handle both cases for robustness
+    if (normalized === DepositHandler.DEPOSIT_HASH_HEX) {
+      return true;
+    }
+
+    // Check if it's the symbol 'Deposit' (base64 XDR for Symbol("Deposit") is 'AAAADAAAAAAHrgAA')
+    if (typeof first === 'string') {
+      try {
+        const scVal = xdr.ScVal.fromXDR(first, 'base64');
+        if (scValToNative(scVal) === 'Deposit') {
+          return true;
+        }
+      } catch {
+        // Not XDR, ignore
+      }
+    }
+
+    return false;
   }
 
   private extractPayload(value: unknown): DepositPayload {
@@ -154,8 +173,10 @@ export class DepositHandler {
         'userPublicKey',
         'user',
         'address',
+        'to',
       ]) ?? '';
-    const amountRaw = asRecord['amount'];
+
+    const amountRaw = asRecord['amount'] ?? asRecord['value'] ?? asRecord['amt'];
 
     const amount =
       typeof amountRaw === 'bigint'
@@ -168,7 +189,7 @@ export class DepositHandler {
 
     if (!publicKey || !amount || Number.isNaN(Number(amount))) {
       throw new Error(
-        'Invalid Deposit payload: expected publicKey + numeric amount',
+        `Invalid Deposit payload: expected publicKey + numeric amount. Got: PK=${publicKey}, Amt=${amount}`,
       );
     }
 

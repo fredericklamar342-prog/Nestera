@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { LoggerModule } from 'nestjs-pino';
+import * as Joi from 'joi';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import configuration from './config/configuration';
-import { envValidationSchema } from './config/env.validation';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { BlockchainModule } from './modules/blockchain/blockchain.module';
@@ -29,15 +31,84 @@ import { TestRbacModule } from './test-rbac/test-rbac.module';
 import { TestThrottlingModule } from './test-throttling/test-throttling.module';
 import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
 
+const envValidationSchema = Joi.object({
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
+  PORT: Joi.number().port().default(3001).required(),
+
+  DB_HOST: Joi.string().required(),
+  DB_PORT: Joi.number().port().required(),
+  DB_NAME: Joi.string().optional(),
+  DB_USER: Joi.string().optional(),
+  DB_PASS: Joi.string().optional(),
+  DATABASE_URL: Joi.string().uri().optional(),
+
+  JWT_SECRET: Joi.string().min(10).required(),
+  JWT_EXPIRATION: Joi.string().required(),
+
+  STELLAR_NETWORK: Joi.string().valid('testnet', 'mainnet').default('testnet'),
+  SOROBAN_RPC_URL: Joi.string().uri().required(),
+  HORIZON_URL: Joi.string().uri().required(),
+  SOROBAN_RPC_FALLBACK_URLS: Joi.string().required(),
+  HORIZON_FALLBACK_URLS: Joi.string().required(),
+
+  CONTRACT_ID: Joi.string().required(),
+  STELLAR_WEBHOOK_SECRET: Joi.string().min(16).required(),
+  STELLAR_EVENT_POLL_INTERVAL: Joi.number().integer().min(1000).default(10000),
+
+  RPC_MAX_RETRIES: Joi.number().integer().min(0).default(3),
+  RPC_RETRY_DELAY: Joi.number().integer().min(0).default(1000),
+  RPC_TIMEOUT: Joi.number().integer().min(0).default(10000),
+
+  REDIS_URL: Joi.string().uri().optional(),
+  MAIL_HOST: Joi.string().optional(),
+  MAIL_PORT: Joi.number().port().default(587),
+  MAIL_USER: Joi.string().optional(),
+  MAIL_PASS: Joi.string().optional(),
+  MAIL_FROM: Joi.string().optional(),
+});
+
 @Module({
   imports: [
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const isProduction = configService.get<string>('NODE_ENV') === 'production';
+        return {
+          pinoHttp: {
+            transport: isProduction
+              ? undefined
+              : { target: 'pino-pretty', options: { singleLine: true } },
+            level: isProduction ? 'info' : 'debug',
+          },
+        };
+      },
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
       validationSchema: envValidationSchema,
       validationOptions: {
         allowUnknown: true,
-        abortEarly: true,
+        abortEarly: false,
+      },
+      validate: (config) => {
+        const { error, value } = envValidationSchema.validate(config, {
+          allowUnknown: true,
+          abortEarly: false,
+        });
+
+        if (error) {
+          const issues = error.details
+            .map((detail) => `- ${detail.message}`)
+            .join('\n');
+          console.error(
+            `[Config] Environment validation failed. Application will exit.\n${issues}`,
+          );
+          process.exit(1);
+        }
+
+        return value;
       },
     }),
     EventEmitterModule.forRoot(),
@@ -119,6 +190,14 @@ import { CustomThrottlerGuard } from './common/guards/custom-throttler.guard';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CorrelationIdInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditLogInterceptor,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -10,7 +10,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SavingsProductType } from '../entities/savings-product.entity';
+import { SavingsProductType, RiskLevel } from '../entities/savings-product.entity';
 
 export class CreateProductDto {
   @ApiProperty({ example: 'Fixed 12-Month Plan', description: 'Product name' })
@@ -55,6 +55,33 @@ export class CreateProductDto {
   @Min(1)
   @Max(360)
   tenureMonths?: number;
+
+  @ApiPropertyOptional({
+    example: 'contract1234567890abcdefghijklmnopqrstuvwxyz',
+    description: 'Soroban contract ID for testnet/mainnet',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(56)
+  contractId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Total Value Locked amount',
+    default: 0,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  tvlAmount?: number;
+
+  @ApiPropertyOptional({
+    enum: RiskLevel,
+    default: RiskLevel.LOW,
+    description: 'Risk level classification',
+  })
+  @IsOptional()
+  @IsEnum(RiskLevel)
+  riskLevel?: RiskLevel;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

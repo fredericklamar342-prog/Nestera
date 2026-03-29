@@ -28,7 +28,7 @@ export function IsStellarPublicKey(validationOptions?: ValidationOptions) {
           }
 
           // Stellar public keys: start with G, exactly 56 chars, Base32 (A-Z, 2-7)
-          const stellarKeyPattern = /^G[A-Z2-7]{54}$/;
+          const stellarKeyPattern = /^G[A-Z2-7]{55}$/;
           return stellarKeyPattern.test(value);
         },
         defaultMessage(args: ValidationArguments) {
@@ -63,7 +63,7 @@ export function IsSorobanContractId(validationOptions?: ValidationOptions) {
           }
 
           // Soroban contract IDs: start with C, exactly 56 chars, Base32 (A-Z, 2-7)
-          const sorobanContractPattern = /^C[A-Z2-7]{54}$/;
+          const sorobanContractPattern = /^C[A-Z2-7]{55}$/;
           return sorobanContractPattern.test(value);
         },
         defaultMessage(args: ValidationArguments) {

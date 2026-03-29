@@ -1,0 +1,73 @@
+# Amana Project Code Ownership
+# 
+# This file defines code ownership and required review rules for critical paths.
+# PRs touching these paths require approval from designated code owners.
+#
+# Syntax: <path> <owner1> <owner2> ...
+# Owners are GitHub usernames or team references (@org/team-name)
+
+# ── Smart Contracts ────────────────────────────────────────────────────────────
+# Critical escrow contract logic
+contracts/amana_escrow/**                @KingFRANKHOOD
+
+# ── Backend: Core Services ─────────────────────────────────────────────────────
+# Authentication and authorization
+backend/src/auth/**                      @KingFRANKHOOD
+backend/src/common/guards/**             @KingFRANKHOOD
+backend/src/common/decorators/**         @KingFRANKHOOD
+
+# Blockchain integration and contract interaction
+backend/src/modules/blockchain/**        @KingFRANKHOOD
+backend/src/modules/transactions/**      @KingFRANKHOOD
+
+# Trade and dispute critical paths
+backend/src/modules/claims/**            @KingFRANKHOOD
+backend/src/modules/disputes/**          @KingFRANKHOOD
+
+# Observability and audit logging
+backend/src/common/interceptors/**       @KingFRANKHOOD
+backend/src/common/filters/**            @KingFRANKHOOD
+
+# Database migrations
+backend/src/migrations/**                @KingFRANKHOOD
+
+# ── Backend: Supporting Services ───────────────────────────────────────────────
+# User and admin management
+backend/src/modules/user/**              @KingFRANKHOOD
+backend/src/modules/admin/**             @KingFRANKHOOD
+
+# Savings and governance
+backend/src/modules/savings/**           @KingFRANKHOOD
+backend/src/modules/governance/**        @KingFRANKHOOD
+
+# Notifications and webhooks
+backend/src/modules/notifications/**     @KingFRANKHOOD
+backend/src/modules/webhooks/**          @KingFRANKHOOD
+
+# ── Frontend: Core Components ──────────────────────────────────────────────────
+# Dashboard and contract details
+frontend/app/components/dashboard/**     @KingFRANKHOOD
+
+# Trade and dispute flows
+frontend/app/components/trade/**         @KingFRANKHOOD
+frontend/app/components/disputes/**      @KingFRANKHOOD
+
+# ── Configuration & Infrastructure ────────────────────────────────────────────
+# Environment and deployment
+backend/.env.example                     @KingFRANKHOOD
+backend/Dockerfile                       @KingFRANKHOOD
+backend/docker-compose.yml               @KingFRANKHOOD
+
+# Package dependencies
+backend/package.json                     @KingFRANKHOOD
+frontend/package.json                    @KingFRANKHOOD
+
+# ── Testing ────────────────────────────────────────────────────────────────────
+# E2E and critical path tests
+backend/test/**                          @KingFRANKHOOD
+
+# ── Documentation ──────────────────────────────────────────────────────────────
+# Governance and contribution guidelines
+CONTRIBUTING.md                          @KingFRANKHOOD
+README.md                                @KingFRANKHOOD
+GOALS_PR_DESCRIPTION.md                  @KingFRANKHOOD

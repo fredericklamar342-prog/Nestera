@@ -180,6 +180,29 @@ export class StellarService implements OnModuleInit {
     }
   }
 
+  async getEvents(startLedger: number, contractIds: string[]): Promise<any[]> {
+    try {
+      return await this.rpcClient.executeWithRetry(async (client) => {
+        const rpcServer = client as rpc.Server;
+        const response = await rpcServer.getEvents({
+          startLedger,
+          filters: [
+            {
+              contractIds,
+            },
+          ],
+        });
+        return response.events || [];
+      }, 'rpc');
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch events from ledger ${startLedger}: ${(error as Error).message}`,
+        error,
+      );
+      throw error;
+    }
+  }
+
   async getDelegationForUser(publicKey: string): Promise<string | null> {
     const contractId = this.configService.get<string>('stellar.contractId');
     if (!contractId || !publicKey) {

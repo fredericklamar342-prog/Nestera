@@ -152,7 +152,7 @@ export class AuthService {
   async linkWallet(
     userId: string,
     dto: LinkWalletDto,
-  ): Promise<{ publicKey: string; message: string }> {
+  ): Promise<{ walletAddress: string; message: string }> {
     const { publicKey, nonce, signature } = dto;
 
     // 1. Validate Stellar public key format
@@ -170,10 +170,13 @@ export class AuthService {
     }
 
     // 3. Persist the link; UserService throws ConflictException on duplicates
-    const updatedUser = await this.userService.linkWallet(userId, publicKey);
+    const updatedUser = await this.userService.linkWalletAddress(
+      userId,
+      publicKey,
+    );
 
     return {
-      publicKey: updatedUser.publicKey!,
+      walletAddress: updatedUser.walletAddress,
       message: 'Wallet linked successfully',
     };
   }

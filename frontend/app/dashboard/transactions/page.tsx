@@ -8,11 +8,10 @@ type TransactionRowData = {
   date: string;
   time: string;
   transactionId: string;
-  title: string;
   type: TransactionType;
   assetDetails: string;
-  amount: number;
-  currency: string;
+  amountDisplay: string;
+  isPositive: boolean | null;
   status: TransactionStatus;
   hash: string;
 };
@@ -24,11 +23,11 @@ function csvEscape(value: string) {
 }
 
 function toCsv(rows: TransactionRowData[]) {
-  const header = ["date", "time", "transactionId", "type", "assetDetails", "amount", "currency", "status", "hash"];
+  const header = ["date", "time", "transactionId", "type", "assetDetails", "amountDisplay", "status", "hash"];
   const lines = [
     header.join(","),
     ...rows.map((r) =>
-      [r.date, r.time, r.transactionId, r.type, r.assetDetails, r.amount.toString(), r.currency, r.status, r.hash]
+      [r.date, r.time, r.transactionId, r.type, r.assetDetails, r.amountDisplay, r.status, r.hash]
         .map(csvEscape)
         .join(","),
     ),
@@ -55,64 +54,48 @@ function downloadTextFile(
 export default function TransactionHistoryPage() {
   const transactions: TransactionRowData[] = [
     {
-      date: "2026-03-25",
-      time: "10:23",
-      transactionId: "0x9f2a...a1b3",
-      title: "Deposit USDC",
+      date: "Oct 25, 2023",
+      time: "10:23 AM",
+      transactionId: "0xabc...123",
       type: "deposit",
-      assetDetails: "USDC Wallet",
-      amount: 500.0,
-      currency: "USDC",
+      assetDetails: "USDC",
+      amountDisplay: "+$500.00",
+      isPositive: true,
       status: "completed",
-      hash: "0x9f2a...a1b3",
+      hash: "0xabc",
     },
     {
-      date: "2026-03-25",
-      time: "08:15",
-      transactionId: "0x3d10...c92e",
-      title: "Yield Earned",
-      type: "yield",
-      assetDetails: "Auto-compound reward",
-      amount: 12.45,
-      currency: "USDC",
-      status: "completed",
-      hash: "0x3d10...c92e",
-    },
-    {
-      date: "2026-03-24",
-      time: "16:32",
-      transactionId: "0x7a4c...1ff2",
-      title: "Swap ETH → USDC",
-      type: "swap",
-      assetDetails: "0.5 ETH for 835 USDC",
-      amount: -0.5,
-      currency: "ETH",
-      status: "completed",
-      hash: "0x7a4c...1ff2",
-    },
-    {
-      date: "2026-03-24",
-      time: "14:18",
-      transactionId: "0x0b22...8e91",
-      title: "Withdraw USDC",
+      date: "Oct 24, 2023",
+      time: "04:15 PM",
+      transactionId: "0xdef...456",
       type: "withdraw",
-      assetDetails: "To external wallet",
-      amount: -250.0,
-      currency: "USDC",
-      status: "pending",
-      hash: "0x0b22...8e91",
+      assetDetails: "ETH",
+      amountDisplay: "-0.50 ETH",
+      isPositive: false,
+      status: "completed",
+      hash: "0xdef",
     },
     {
-      date: "2026-03-25",
-      time: "12:00",
-      transactionId: "0x5f99...d2be",
-      title: "Swap USDC → DAI",
+      date: "Oct 24, 2023",
+      time: "09:30 AM",
+      transactionId: "0xghi...789",
       type: "swap",
-      assetDetails: "550 USDC to 549 DAI",
-      amount: -550.0,
-      currency: "USDC",
+      assetDetails: "XLM → USDC",
+      amountDisplay: "200 USDC",
+      isPositive: null,
       status: "completed",
-      hash: "0x5f99...d2be",
+      hash: "0xghi",
+    },
+    {
+      date: "Oct 23, 2023",
+      time: "08:00 AM",
+      transactionId: "0xjkl...012",
+      type: "yield",
+      assetDetails: "Staking Reward",
+      amountDisplay: "+$12.45",
+      isPositive: true,
+      status: "pending",
+      hash: "0xjkl",
     },
   ];
 
@@ -177,10 +160,12 @@ export default function TransactionHistoryPage() {
 
       <div className="rounded-2xl border border-white/5 bg-[#0e2330] overflow-hidden">
         <div className="grid grid-cols-12 px-5 py-3 border-b border-white/5 text-[#5e8c96] text-xs font-bold uppercase tracking-widest">
-          <div className="col-span-4">Date</div>
-          <div className="col-span-4">Description</div>
-          <div className="col-span-2">Token</div>
+          <div className="col-span-2">Date</div>
+          <div className="col-span-2">Transaction ID</div>
+          <div className="col-span-2">Type</div>
+          <div className="col-span-2">Asset / Details</div>
           <div className="col-span-2 text-right">Amount</div>
+          <div className="col-span-2 text-right">Status</div>
         </div>
 
         {transactions.map((t) => (
@@ -191,12 +176,22 @@ export default function TransactionHistoryPage() {
             transactionId={t.transactionId}
             type={t.type}
             assetDetails={t.assetDetails}
-            amount={t.amount}
-            currency={t.currency}
+            amountDisplay={t.amountDisplay}
+            isPositive={t.isPositive}
             status={t.status}
             onClick={(id) => console.log('Open transaction', id)}
           />
         ))}
+
+        {/* Empty space filler */}
+        <div className="h-[300px] border-b border-white/5"></div>
+
+        {/* Pagination Controls */}
+        <div className="px-5 py-4 flex items-center gap-4 text-sm font-semibold justify-end">
+          <button className="text-[#5e8c96] hover:text-[#e2f8f8] transition-colors">&lt; Prev</button>
+          <span className="px-4 py-1.5 bg-[rgba(6,110,110,0.2)] text-[#e2f8f8] rounded-lg">Page 1 of 12</span>
+          <button className="text-[#e2f8f8] hover:text-[#8ef4ef] transition-colors flex items-center gap-1">Next &gt;</button>
+        </div>
       </div>
     </div>
   );

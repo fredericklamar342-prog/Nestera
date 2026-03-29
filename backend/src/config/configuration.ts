@@ -19,14 +19,15 @@ export default () => ({
     rpcUrl: process.env.SOROBAN_RPC_URL,
     horizonUrl: process.env.HORIZON_URL,
     // Fallback RPC URLs (comma-separated, in priority order)
-    rpcFallbackUrls:
-      process.env.SOROBAN_RPC_FALLBACK_URLS?.split(',').map((url) =>
-        url.trim(),
-      ) || [],
+    rpcFallbackUrls: (process.env.SOROBAN_RPC_FALLBACK_URLS || '')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean),
     // Fallback Horizon URLs (comma-separated, in priority order)
-    horizonFallbackUrls:
-      process.env.HORIZON_FALLBACK_URLS?.split(',').map((url) => url.trim()) ||
-      [],
+    horizonFallbackUrls: (process.env.HORIZON_FALLBACK_URLS || '')
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean),
     contractId: process.env.CONTRACT_ID,
     webhookSecret: process.env.STELLAR_WEBHOOK_SECRET,
     eventPollInterval: parseInt(

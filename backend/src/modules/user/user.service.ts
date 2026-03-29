@@ -73,10 +73,31 @@ export class UserService {
 
   async create(data: Partial<User>) {
     const newEntity = this.userRepository.create(data);
-    const savedUser = await this.userRepository.save(newEntity);
 
-    // Return with only selected fields to match old behavior
-    return this.findById(savedUser.id);
+    try {
+      const savedUser = await this.userRepository.save(newEntity);
+      // Return with only selected fields to match old behavior
+      return this.findById(savedUser.id);
+    } catch (error: any) {
+      // Handle unique constraint violations from database
+      if (error.code === '23505') {
+        // PostgreSQL unique constraint violation
+        // Determine which column caused the conflict
+        if (error.detail?.includes('email')) {
+          throw new ConflictException('Email already exists');
+        } else if (error.detail?.includes('walletAddress')) {
+          throw new ConflictException(
+            'This wallet address is already linked to another account',
+          );
+        } else if (error.detail?.includes('publicKey')) {
+          throw new ConflictException(
+            'This public key is already linked to another account',
+          );
+        }
+        throw new ConflictException('This record already exists');
+      }
+      throw error;
+    }
   }
 
   /**

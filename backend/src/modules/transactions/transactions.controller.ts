@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -40,5 +41,35 @@ export class TransactionsController {
     @Query() queryDto: TransactionQueryDto,
   ): Promise<PageDto<TransactionResponseDto>> {
     return this.transactionsService.findAllForUser(user.id, queryDto);
+  }
+
+  @Get('export')
+  @ApiOperation({
+    summary: 'Export transaction history as CSV',
+    description:
+      'Streams transactions as CSV for download with controlled memory usage while respecting query filters.',
+  })
+  @ApiResponse({ status: 200, description: 'CSV file stream' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing JWT token',
+  })
+  async exportTransactions(
+    @CurrentUser() user: { id: string },
+    @Query() queryDto: TransactionQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="nestera_history.csv"',
+    );
+
+    const csvStream = await this.transactionsService.streamTransactionsCsv(
+      user.id,
+      queryDto,
+    );
+
+    csvStream.pipe(res);
   }
 }

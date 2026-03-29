@@ -51,7 +51,7 @@ describe('TransactionsService', () => {
 
   describe('findAllForUser', () => {
     const userId = 'test-user-id';
-    const mockTransactions: LedgerTransaction[] = [
+    const mockTransactions: Partial<LedgerTransaction>[] = [
       {
         id: '1',
         userId,
@@ -74,7 +74,10 @@ describe('TransactionsService', () => {
         order: Order.DESC,
       });
 
-      mockQueryBuilder.getManyAndCount.mockResolvedValue([mockTransactions, 1]);
+      mockQueryBuilder.getManyAndCount.mockResolvedValue([
+        mockTransactions as LedgerTransaction[],
+        1,
+      ]);
 
       const result = await service.findAllForUser(userId, queryDto);
 

@@ -11,11 +11,13 @@ import { StellarEventListenerController } from './stellar-event-listener.control
 import { ProcessedStellarEvent } from './entities/processed-event.entity';
 import { LedgerTransaction } from './entities/transaction.entity';
 import { DeadLetterEvent } from './entities/dead-letter-event.entity';
+import { IndexerState } from './entities/indexer-state.entity';
 import { MedicalClaim } from '../claims/entities/medical-claim.entity';
 import { User } from '../user/entities/user.entity';
 import { UserSubscription } from '../savings/entities/user-subscription.entity';
 import { SavingsProduct } from '../savings/entities/savings-product.entity';
 import { DepositHandler } from './event-handlers/deposit.handler';
+import { WithdrawHandler } from './event-handlers/withdraw.handler';
 import { YieldHandler } from './event-handlers/yield.handler';
 import { IndexerService } from './indexer.service';
 
@@ -32,6 +34,7 @@ import { IndexerService } from './indexer.service';
       MedicalClaim,
       LedgerTransaction,
       DeadLetterEvent,
+      IndexerState,
       User,
       UserSubscription,
       SavingsProduct,
@@ -45,6 +48,7 @@ import { IndexerService } from './indexer.service';
     StellarEventListenerService,
     IndexerService,
     DepositHandler,
+    WithdrawHandler,
     YieldHandler,
   ],
   exports: [
@@ -54,6 +58,7 @@ import { IndexerService } from './indexer.service';
     StellarEventListenerService,
     IndexerService,
     DepositHandler,
+    WithdrawHandler,
     YieldHandler,
   ],
 })

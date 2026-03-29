@@ -5,7 +5,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerException } from '@nestjs/throttler';
 import { Request } from 'express';
 
 /**
@@ -18,6 +18,12 @@ import { Request } from 'express';
  * Configuration:
  * - GET /savings/my-subscriptions: 10 requests per minute per User ID
  * - Other RPC endpoints: configurable via decorator
+ *
+ * Key Features:
+ * - User-ID based tracking (when authenticated) to prevent IP-shifting bypasses
+ * - IP fallback for unauthenticated RPC calls
+ * - Automatic Retry-After and X-RateLimit header injection
+ * - Custom error messages with limit/TTL information
  */
 @Injectable()
 export class RpcThrottleGuard extends ThrottlerGuard {
@@ -26,24 +32,31 @@ export class RpcThrottleGuard extends ThrottlerGuard {
   /**
    * Override getTracker to use User ID instead of IP address
    * This ensures rate limiting is per-user, not per-IP
+   *
+   * Prioritization:
+   * 1. If user is authenticated (has req.user.id), use User ID
+   * 2. Otherwise fall back to IP address
    */
   protected async getTracker(req: Record<string, any>): Promise<string> {
-    // Extract user ID from JWT token in request
+    // Extract user ID from JWT token in request (set by JwtAuthGuard)
     const user = req.user;
 
-    if (!user || !user.id) {
-      this.logger.warn(
-        `RpcThrottleGuard: No user found in request to ${req.path}`,
-      );
-      // Fallback to IP if no user (shouldn't happen with JwtAuthGuard)
-      return req.ip || 'unknown';
+    if (user && user.id) {
+      // Use User ID for authenticated requests
+      return `rpc-throttle:${user.id}`;
     }
 
-    return `rpc-throttle:${user.id}`;
+    // Fallback to IP for unauthenticated requests
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    this.logger.debug(
+      `RpcThrottleGuard: Using IP-based tracking for ${req.method} ${req.path} (IP: ${ip})`,
+    );
+    return `rpc-throttle:${ip}`;
   }
 
   /**
-   * Override onLimitExceeded to provide custom error response
+   * Override onLimitExceeded to throw ThrottlerException (429)
+   * This integrates seamlessly with NestJS error handling
    */
   async onLimitExceeded(
     context: ExecutionContext,
@@ -51,15 +64,28 @@ export class RpcThrottleGuard extends ThrottlerGuard {
     ttl: number,
   ): Promise<void> {
     const request = context.switchToHttp().getRequest<Request>();
+    const response = context.switchToHttp().getResponse();
     const user = (request as any).user;
 
+    // Log the rate limit breach
     this.logger.warn(
-      `RPC rate limit exceeded for user ${user?.id || 'unknown'} on ${request.method} ${request.path}. Limit: ${limit} requests per ${ttl}ms`,
+      `[RPC Rate Limit] User/IP: ${user?.id || request.ip || 'unknown'} | ` +
+        `Route: ${request.method} ${request.path} | ` +
+        `Limit: ${limit} req/${Math.round(ttl / 1000)}s`,
     );
 
-    throw new HttpException(
+    // Set Retry-After header (standard HTTP 429 behavior)
+    response.setHeader('Retry-After', Math.ceil(ttl / 1000));
+    response.setHeader('X-RateLimit-Limit', limit);
+    response.setHeader('X-RateLimit-Remaining', 0);
+    response.setHeader(
+      'X-RateLimit-Reset',
+      new Date(Date.now() + ttl).toISOString(),
+    );
+
+    // Throw ThrottlerException which results in HTTP 429
+    throw new ThrottlerException(
       `Too many RPC requests. Maximum ${limit} requests per ${Math.round(ttl / 1000)} seconds allowed.`,
-      HttpStatus.TOO_MANY_REQUESTS,
     );
   }
 }

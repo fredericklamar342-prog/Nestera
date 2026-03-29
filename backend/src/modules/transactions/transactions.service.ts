@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Readable } from 'stream';
+import { format as csvFormat } from '@fast-csv/format';
 import { LedgerTransaction } from '../blockchain/entities/transaction.entity';
 import { TransactionQueryDto } from './dto/transaction-query.dto';
 import { TransactionResponseDto } from './dto/transaction-response.dto';
@@ -36,6 +38,58 @@ export class TransactionsService {
     });
 
     return new PageDto(transformedData, meta);
+  }
+
+  async streamTransactionsCsv(
+    userId: string,
+    queryDto: TransactionQueryDto,
+  ): Promise<Readable> {
+    const chunkSize = Number(queryDto.limit ?? 1000);
+    let offset = 0;
+
+    const csvStream = csvFormat({ headers: true, quoteColumns: true });
+
+    (async () => {
+      try {
+        while (true) {
+          const batch = await this.buildQuery(userId, queryDto)
+            .skip(offset)
+            .take(chunkSize)
+            .getMany();
+
+          if (!batch.length) {
+            break;
+          }
+
+          for (const tx of batch) {
+            const dto = this.transformToResponseDto(tx);
+            csvStream.write({
+              id: dto.id,
+              userId: dto.userId,
+              type: dto.type,
+              amount: dto.amount,
+              amountFormatted: dto.amountFormatted?.display ?? '',
+              publicKey: dto.publicKey ?? '',
+              eventId: dto.eventId,
+              transactionHash: dto.transactionHash ?? '',
+              ledgerSequence: dto.ledgerSequence ?? '',
+              poolId: dto.poolId ?? '',
+              assetId: dto.assetId ?? '',
+              metadata: dto.metadata ? JSON.stringify(dto.metadata) : '',
+              createdAt: dto.createdAt,
+            });
+          }
+
+          offset += chunkSize;
+        }
+      } catch (error) {
+        csvStream.destroy(error);
+      } finally {
+        csvStream.end();
+      }
+    })();
+
+    return csvStream;
   }
 
   private buildQuery(
@@ -84,6 +138,9 @@ export class TransactionsService {
   ): TransactionResponseDto {
     const createdAt = new Date(transaction.createdAt);
 
+    // Extract asset ID from metadata or use default USDC
+    const assetId = this.extractAssetId(transaction);
+
     return {
       id: transaction.id,
       userId: transaction.userId,
@@ -106,6 +163,26 @@ export class TransactionsService {
         minute: '2-digit',
         second: '2-digit',
       }),
-    };
+      // Add assetId for interceptor formatting (will be enriched by interceptor)
+      assetId,
+    } as TransactionResponseDto;
+  }
+
+  /**
+   * Extract asset ID from transaction metadata or return default
+   */
+  private extractAssetId(transaction: LedgerTransaction): string {
+    // Check metadata for asset information
+    if (transaction.metadata?.assetId) {
+      return transaction.metadata.assetId as string;
+    }
+
+    if (transaction.metadata?.contractId) {
+      return transaction.metadata.contractId as string;
+    }
+
+    // Check if poolId corresponds to a known asset
+    // For now, default to USDC as it's the primary asset
+    return 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA';
   }
 }

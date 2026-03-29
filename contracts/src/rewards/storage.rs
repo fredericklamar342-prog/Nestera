@@ -1,8 +1,10 @@
 use super::storage_types::{RewardsDataKey, UserRewards};
 use crate::errors::SavingsError;
 use crate::rewards::config::get_rewards_config;
-use crate::rewards::events::{emit_bonus_awarded, emit_points_awarded, emit_streak_updated};
-use soroban_sdk::{Address, Env, Symbol};
+use crate::rewards::events::{
+    emit_bonus_awarded, emit_points_awarded, emit_rewards_claimed, emit_streak_updated,
+};
+use soroban_sdk::{token, Address, Env, Symbol};
 
 /// Duration threshold for long-lock bonus eligibility (in seconds).
 pub const LONG_LOCK_BONUS_THRESHOLD_SECS: u64 = 180 * 24 * 60 * 60;
@@ -31,6 +33,8 @@ pub fn get_user_rewards(env: &Env, user: Address) -> UserRewards {
             last_action_timestamp: 0,
             daily_points_earned: 0,
             last_reward_day: 0,
+            claimed_tokens: 0,
+            unclaimed_tokens: 0,
         }
     }
 }
@@ -56,6 +60,8 @@ pub fn initialize_user_rewards(env: &Env, user: Address) -> Result<(), SavingsEr
         last_action_timestamp: env.ledger().timestamp(),
         daily_points_earned: 0,
         last_reward_day: env.ledger().timestamp() / 86400,
+        claimed_tokens: 0,
+        unclaimed_tokens: 0,
     };
 
     // Now this function can find save_user_rewards because they are in the same file
@@ -222,6 +228,97 @@ pub fn award_deposit_points(env: &Env, user: Address, amount: i128) -> Result<()
     }
 
     Ok(())
+}
+
+/// Claims all unclaimed token rewards for a user, transferring native tokens from the contract.
+///
+/// # Arguments
+/// * `env` - Contract environment
+/// * `user` - User address claiming rewards
+/// * `contract_address` - This contract's own address (for token transfer)
+///
+/// # Returns
+/// * `Ok(i128)` - Amount of tokens claimed
+/// * `Err(SavingsError)` if no rewards, token not configured, or arithmetic error
+///
+/// # Safety
+/// * Prevents double-claiming by zeroing unclaimed_tokens before transfer
+/// * Uses checked arithmetic
+/// * Emits RewardsClaimed event on success
+pub fn claim_rewards(
+    env: &Env,
+    user: Address,
+    contract_address: Address,
+) -> Result<i128, SavingsError> {
+    let mut rewards = get_user_rewards(env, user.clone());
+
+    if rewards.unclaimed_tokens == 0 {
+        return Err(SavingsError::InsufficientBalance);
+    }
+
+    let amount = rewards.unclaimed_tokens;
+
+    // Get the reward token address
+    let token_address: Address = env
+        .storage()
+        .instance()
+        .get(&RewardsDataKey::RewardToken)
+        .ok_or(SavingsError::InternalError)?;
+
+    // Zero out unclaimed before transfer (prevent double-claim)
+    rewards.unclaimed_tokens = 0;
+    rewards.claimed_tokens = rewards
+        .claimed_tokens
+        .checked_add(amount)
+        .ok_or(SavingsError::Overflow)?;
+    save_user_rewards(env, user.clone(), &rewards);
+
+    // Transfer tokens from contract to user
+    let token_client = token::Client::new(env, &token_address);
+    token_client.transfer(&contract_address, &user, &amount);
+
+    emit_rewards_claimed(env, user, amount);
+    Ok(amount)
+}
+
+/// Converts accumulated points to claimable token rewards at a given rate.
+///
+/// # Arguments
+/// * `env` - Contract environment
+/// * `user` - User address
+/// * `points_to_convert` - Number of points to convert
+/// * `tokens_per_point` - Token amount per point (in token's smallest unit)
+pub fn convert_points_to_tokens(
+    env: &Env,
+    user: Address,
+    points_to_convert: u128,
+    tokens_per_point: i128,
+) -> Result<i128, SavingsError> {
+    if points_to_convert == 0 || tokens_per_point <= 0 {
+        return Err(SavingsError::InvalidAmount);
+    }
+
+    let mut rewards = get_user_rewards(env, user.clone());
+
+    if rewards.total_points < points_to_convert {
+        return Err(SavingsError::InsufficientBalance);
+    }
+
+    let token_amount = (points_to_convert as i128)
+        .checked_mul(tokens_per_point)
+        .ok_or(SavingsError::Overflow)?;
+
+    rewards.total_points = rewards
+        .total_points
+        .checked_sub(points_to_convert)
+        .ok_or(SavingsError::Overflow)?;
+    rewards.unclaimed_tokens = rewards
+        .unclaimed_tokens
+        .checked_add(token_amount)
+        .ok_or(SavingsError::Overflow)?;
+
+    save_user_rewards(env, user, &rewards);
+    Ok(token_amount)
 }
 
 /// Awards bonus points for long lock plans when duration exceeds the configured threshold.

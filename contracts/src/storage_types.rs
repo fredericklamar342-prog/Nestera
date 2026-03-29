@@ -206,6 +206,8 @@ pub enum DataKey {
     LockRate(u64),
     /// Maps (plan_type, plan_id) to disabled status
     DisabledStrategy(PlanType, u64),
+    /// Stores the native protocol token metadata (name, symbol, decimals, supply, treasury)
+    TokenMetadata,
 }
 
 /// Payload structure that the admin signs off-chain

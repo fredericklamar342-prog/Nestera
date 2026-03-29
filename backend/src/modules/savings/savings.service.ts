@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
-import { SavingsProduct } from './entities/savings-product.entity';
+import { SavingsProduct, RiskLevel } from './entities/savings-product.entity';
 import {
   UserSubscription,
   SubscriptionStatus,
@@ -18,6 +18,7 @@ import {
 import { SavingsGoal, SavingsGoalStatus } from './entities/savings-goal.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { SavingsProductDto } from './dto/savings-product.dto';
 import { GoalProgressDto } from './dto/goal-progress.dto';
 import { User } from '../user/entities/user.entity';
 import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
@@ -93,11 +94,52 @@ export class SavingsService {
     return updatedProduct;
   }
 
-  async findAllProducts(activeOnly = false): Promise<SavingsProduct[]> {
-    return await this.productRepository.find({
+  async findAllProducts(
+    activeOnly = false,
+    sort?: 'apy' | 'tvl',
+  ): Promise<SavingsProductDto[]> {
+    const products = await this.productRepository.find({
       where: activeOnly ? { isActive: true } : undefined,
-      order: { createdAt: 'DESC' },
+      relations: ['subscriptions'],
     });
+
+    const dtos: SavingsProductDto[] = products.map((product) => {
+      // Calculate TVL by summing active subscriptions
+      const tvlAmount = product.subscriptions
+        ? product.subscriptions
+            .filter((s) => s.status === SubscriptionStatus.ACTIVE)
+            .reduce((sum, s) => sum + Number(s.amount), 0)
+        : 0;
+
+      return {
+        id: product.id,
+        name: product.name,
+        type: product.type,
+        description: product.description,
+        interestRate: Number(product.interestRate),
+        minAmount: Number(product.minAmount),
+        maxAmount: Number(product.maxAmount),
+        tenureMonths: product.tenureMonths,
+        contractId: product.contractId,
+        isActive: product.isActive,
+        riskLevel: product.riskLevel || RiskLevel.LOW,
+        tvlAmount,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      };
+    });
+
+    // Handle local sorting
+    if (sort === 'apy') {
+      dtos.sort((a, b) => b.interestRate - a.interestRate);
+    } else if (sort === 'tvl') {
+      dtos.sort((a, b) => b.tvlAmount - a.tvlAmount);
+    } else {
+      // Default sort by createdAt DESC
+      dtos.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    return dtos;
   }
 
   async findOneProduct(id: string): Promise<SavingsProduct> {

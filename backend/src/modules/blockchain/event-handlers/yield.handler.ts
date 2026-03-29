@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { scValToNative, xdr } from '@stellar/stellar-sdk';
 import {
   LedgerTransaction,
+  LedgerTransactionStatus,
   LedgerTransactionType,
 } from '../entities/transaction.entity';
 import {
@@ -78,6 +79,7 @@ export class YieldHandler {
           amount: payload.amount,
           publicKey: payload.publicKey,
           eventId,
+          status: LedgerTransactionStatus.COMPLETED,
           transactionHash:
             typeof event.txHash === 'string' ? event.txHash : null,
           ledgerSequence:
@@ -100,10 +102,13 @@ export class YieldHandler {
       });
 
       if (subscription) {
-        subscription.totalInterestEarned = String(
-          Number(subscription.totalInterestEarned || '0') + amountAsNumber,
+        // Increment the totalInterestEarned natively in the database to ensure absolute precision
+        await manager.increment(
+          UserSubscription,
+          { id: subscription.id },
+          'totalInterestEarned',
+          amountAsNumber,
         );
-        await subRepo.save(subscription);
       } else {
         this.logger.warn(
           `No active subscription found for user ${user.id} to apply yield to.`,
@@ -122,15 +127,39 @@ export class YieldHandler {
     const first = topic[0];
     const normalized = this.toHex(first);
 
-    // Also check for 'yld_dist' which is emitted by the contract strategy
+    // Common topic hashes for yield events
     const YLD_DIST_HASH_HEX = createHash('sha256')
       .update('yld_dist')
       .digest('hex');
 
-    return (
+    const YIELD_PAYOUT_HASH_HEX = createHash('sha256')
+      .update('YieldPayout') // Some contracts use YieldPayout explicitly
+      .digest('hex');
+
+    if (
       normalized === YieldHandler.YIELD_HASH_HEX ||
-      normalized === YLD_DIST_HASH_HEX
-    );
+      normalized === YLD_DIST_HASH_HEX ||
+      normalized === YIELD_PAYOUT_HASH_HEX
+    ) {
+      return true;
+    }
+
+    // Check if it's a Symbol XDR (Yield, YieldPayout, or yld_dist)
+    if (typeof first === 'string') {
+      try {
+        const scVal = xdr.ScVal.fromXDR(first, 'base64');
+        const symbol = scValToNative(scVal);
+        return (
+          symbol === 'Yield' ||
+          symbol === 'YieldPayout' ||
+          symbol === 'yld_dist'
+        );
+      } catch {
+        // Not XDR, ignore
+      }
+    }
+
+    return false;
   }
 
   private extractPayload(value: unknown): YieldPayload {
@@ -145,10 +174,12 @@ export class YieldHandler {
         'address',
       ]) ?? '';
     const amountRaw =
-      asRecord['amount'] ||
-      asRecord['yield'] ||
-      asRecord['user_yield'] ||
-      asRecord['actual_yield'];
+      asRecord['amount'] ??
+      asRecord['yield'] ??
+      asRecord['interest'] ??
+      asRecord['user_yield'] ??
+      asRecord['actual_yield'] ??
+      asRecord['payout'];
 
     const amount =
       typeof amountRaw === 'bigint'
@@ -211,11 +242,12 @@ export class YieldHandler {
 
     // Handle the case where value is an array (like in yld_dist event containing [strategy, actual_yield, treasury_fee, user_yield])
     if (Array.isArray(value)) {
-      // If it's an array without keys, assume the first element is address, inner yield is index 3
-      if (value.length >= 4) {
+      // If it's an array without keys, we need to map it carefully.
+      // yld_dist typically: [publicKey, total_yield, fee, net_yield]
+      if (value.length >= 2) {
         return {
-          address: value[0],
-          user_yield: value[3],
+          publicKey: value[0],
+          amount: value[3] ?? value[1], // Try the net_yield (index 3) first, else total (index 1)
         };
       }
     }
