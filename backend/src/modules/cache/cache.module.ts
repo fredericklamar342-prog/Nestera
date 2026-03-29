@@ -3,9 +3,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { cacheConfig } from './cache.config';
 
 @Module({
-  imports: [
-    CacheModule.registerAsync(cacheConfig),
-  ],
+  imports: [CacheModule.registerAsync(cacheConfig)],
   providers: [],
   exports: [],
 })

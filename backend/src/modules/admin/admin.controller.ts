@@ -8,10 +8,14 @@ import {
 } from '@nestjs/common';
 import { UserService } from '../user/user.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Role } from '../../common/enums/role.enum';
 import { ApproveKycDto, RejectKycDto } from '../user/dto/update-user.dto';
 
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN)
 export class AdminController {
   constructor(private readonly userService: UserService) {}
 
@@ -24,10 +28,7 @@ export class AdminController {
   }
 
   @Patch('users/:id/kyc/reject')
-  async rejectKyc(
-    @Param('id') userId: string,
-    @Body() dto: RejectKycDto,
-  ) {
+  async rejectKyc(@Param('id') userId: string, @Body() dto: RejectKycDto) {
     if (!userId) {
       throw new BadRequestException('User ID is required');
     }

@@ -1,9 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Dispute, DisputeMessage, DisputeStatus } from './entities/dispute.entity';
+import {
+  Dispute,
+  DisputeMessage,
+  DisputeStatus,
+} from './entities/dispute.entity';
 import { MedicalClaim } from '../claims/entities/medical-claim.entity';
-import { CreateDisputeDto, UpdateDisputeDto, AddDisputeMessageDto } from './dto/dispute.dto';
+import {
+  CreateDisputeDto,
+  UpdateDisputeDto,
+  AddDisputeMessageDto,
+} from './dto/dispute.dto';
 
 @Injectable()
 export class DisputesService {
@@ -17,7 +29,9 @@ export class DisputesService {
   ) {}
 
   async createDispute(createDisputeDto: CreateDisputeDto): Promise<Dispute> {
-    const claim = await this.claimRepository.findOneBy({ id: createDisputeDto.claimId });
+    const claim = await this.claimRepository.findOneBy({
+      id: createDisputeDto.claimId,
+    });
     if (!claim) {
       throw new BadRequestException('Invalid claim ID. Claim does not exist.');
     }
@@ -48,15 +62,21 @@ export class DisputesService {
     return dispute;
   }
 
-  async updateDispute(id: string, updateDisputeDto: UpdateDisputeDto): Promise<Dispute> {
+  async updateDispute(
+    id: string,
+    updateDisputeDto: UpdateDisputeDto,
+  ): Promise<Dispute> {
     const dispute = await this.findOne(id);
     Object.assign(dispute, updateDisputeDto);
     return await this.disputeRepository.save(dispute);
   }
 
-  async addMessage(id: string, addMessageDto: AddDisputeMessageDto): Promise<DisputeMessage> {
+  async addMessage(
+    id: string,
+    addMessageDto: AddDisputeMessageDto,
+  ): Promise<DisputeMessage> {
     const dispute = await this.findOne(id);
-    
+
     const message = this.messageRepository.create({
       disputeId: dispute.id,
       ...addMessageDto,

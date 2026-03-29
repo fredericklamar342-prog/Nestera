@@ -142,7 +142,9 @@ export class RpcClientWrapper {
     if (this.horizonEndpoints.length === 0) {
       throw new Error('No Horizon endpoints configured');
     }
-    return new Horizon.Server(this.horizonEndpoints[this.currentHorizonIndex].url);
+    return new Horizon.Server(
+      this.horizonEndpoints[this.currentHorizonIndex].url,
+    );
   }
 
   /**

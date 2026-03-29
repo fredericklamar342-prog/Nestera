@@ -4,10 +4,16 @@ export class AssetAllocationItemDto {
   @ApiProperty({ example: 'USDC', description: 'Asset identifier / code' })
   assetId: string;
 
-  @ApiProperty({ example: 1500.0, description: 'Total amount held for this asset' })
+  @ApiProperty({
+    example: 1500.0,
+    description: 'Total amount held for this asset',
+  })
   amount: number;
 
-  @ApiProperty({ example: 62.5, description: 'Percentage of total portfolio (2 decimal places)' })
+  @ApiProperty({
+    example: 62.5,
+    description: 'Percentage of total portfolio (2 decimal places)',
+  })
   percentage: number;
 }
 
@@ -15,6 +21,9 @@ export class AssetAllocationDto {
   @ApiProperty({ type: [AssetAllocationItemDto] })
   allocations: AssetAllocationItemDto[];
 
-  @ApiProperty({ example: 2400.0, description: 'Absolute total across all assets' })
+  @ApiProperty({
+    example: 2400.0,
+    description: 'Absolute total across all assets',
+  })
   total: number;
 }

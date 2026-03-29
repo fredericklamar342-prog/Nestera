@@ -35,7 +35,11 @@ describe('DisputesController', () => {
         reason: 'Incorrect amount',
       };
 
-      const expected = { id: 'dispute-123', ...createDto, status: DisputeStatus.OPEN };
+      const expected = {
+        id: 'dispute-123',
+        ...createDto,
+        status: DisputeStatus.OPEN,
+      };
       mockDisputesService.createDispute.mockResolvedValue(expected);
 
       const result = await controller.createDispute(createDto);
@@ -53,12 +57,18 @@ describe('DisputesController', () => {
         evidenceUrl: 'https://example.com/doc.pdf',
       };
 
-      mockDisputesService.addMessage.mockResolvedValue({ id: 'msg-123', ...messageDto });
+      mockDisputesService.addMessage.mockResolvedValue({
+        id: 'msg-123',
+        ...messageDto,
+      });
 
       const result = await controller.addMessage('dispute-123', messageDto);
 
       expect(result).toHaveProperty('id');
-      expect(mockDisputesService.addMessage).toHaveBeenCalledWith('dispute-123', messageDto);
+      expect(mockDisputesService.addMessage).toHaveBeenCalledWith(
+        'dispute-123',
+        messageDto,
+      );
     });
   });
 });

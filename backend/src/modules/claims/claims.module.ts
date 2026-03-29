@@ -14,4 +14,4 @@ import { HospitalIntegrationModule } from '../hospital-integration/hospital-inte
   providers: [ClaimsService],
   exports: [ClaimsService],
 })
-export class ClaimsModule { }
+export class ClaimsModule {}

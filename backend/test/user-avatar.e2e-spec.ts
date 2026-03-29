@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, ExecutionContext } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  ExecutionContext,
+} from '@nestjs/common';
 import request from 'supertest';
 import { join } from 'path';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
@@ -14,7 +18,7 @@ import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
  * 1. PostgreSQL is running with credentials in DATABASE_URL env var
  * 2. Database schema is migrated
  * 3. Run: pnpm run test:e2e
- * 
+ *
  * For CI/CD, unit tests and build are the primary checks.
  */
 describe.skip('User Avatar (e2e)', () => {

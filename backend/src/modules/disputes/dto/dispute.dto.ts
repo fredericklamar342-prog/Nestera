@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsUUID, MinLength, MaxLength, IsOptional, IsUrl } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsUUID,
+  MinLength,
+  MaxLength,
+  IsOptional,
+  IsUrl,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateDisputeDto {
@@ -23,7 +31,10 @@ export class CreateDisputeDto {
 }
 
 export class UpdateDisputeDto {
-  @ApiProperty({ example: 'UNDER_REVIEW', enum: ['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'CLOSED'] })
+  @ApiProperty({
+    example: 'UNDER_REVIEW',
+    enum: ['OPEN', 'UNDER_REVIEW', 'RESOLVED', 'CLOSED'],
+  })
   @IsString()
   @IsOptional()
   status?: string;

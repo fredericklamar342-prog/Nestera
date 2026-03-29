@@ -1,6 +1,20 @@
-import { IsString, IsNotEmpty, IsDateString, IsArray, ArrayMinSize, IsNumber, IsOptional, MinLength, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsArray,
+  ArrayMinSize,
+  IsNumber,
+  IsOptional,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsICD10Code, IsPositiveAmount, IsValidHospitalId } from '../validators/claim.validators';
+import {
+  IsICD10Code,
+  IsPositiveAmount,
+  IsValidHospitalId,
+} from '../validators/claim.validators';
 
 export class CreateClaimDto {
   @ApiProperty({ example: 'John Doe', description: 'Patient full name' })
@@ -10,17 +24,26 @@ export class CreateClaimDto {
   @MaxLength(100)
   patientName: string;
 
-  @ApiProperty({ example: 'PAT-123456', description: 'Unique patient identifier' })
+  @ApiProperty({
+    example: 'PAT-123456',
+    description: 'Unique patient identifier',
+  })
   @IsString()
   @IsNotEmpty()
   patientId: string;
 
-  @ApiProperty({ example: '1990-01-15', description: 'Patient date of birth (ISO 8601)' })
+  @ApiProperty({
+    example: '1990-01-15',
+    description: 'Patient date of birth (ISO 8601)',
+  })
   @IsDateString()
   @IsNotEmpty()
   patientDateOfBirth: string;
 
-  @ApiProperty({ example: 'City General Hospital', description: 'Hospital name' })
+  @ApiProperty({
+    example: 'City General Hospital',
+    description: 'Hospital name',
+  })
   @IsString()
   @IsNotEmpty()
   @MinLength(3)
@@ -32,13 +55,16 @@ export class CreateClaimDto {
   @IsNotEmpty()
   hospitalId: string;
 
-  @ApiProperty({ example: ['A09', 'J18.9'], description: 'ICD-10 diagnosis codes' })
+  @ApiProperty({
+    example: ['A09', 'J18.9'],
+    description: 'ICD-10 diagnosis codes',
+  })
   @IsArray()
   @ArrayMinSize(1)
   @IsICD10Code()
   diagnosisCodes: string[];
 
-  @ApiProperty({ example: 5000.50, description: 'Claim amount in USD' })
+  @ApiProperty({ example: 5000.5, description: 'Claim amount in USD' })
   @IsNumber()
   @IsPositiveAmount()
   claimAmount: number;

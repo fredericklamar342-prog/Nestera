@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { User } from './entities/user.entity';
 import { StellarService } from '../blockchain/stellar.service';
 
@@ -13,6 +14,7 @@ export class SweepTasksService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly stellarService: StellarService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -26,8 +28,10 @@ export class SweepTasksService {
     try {
       // Fetch users with auto-sweep enabled
       const usersWithAutoSweep = await this.getUsersWithAutoSweepEnabled();
-      
-      this.logger.log(`Found ${usersWithAutoSweep.length} users with auto-sweep enabled`);
+
+      this.logger.log(
+        `Found ${usersWithAutoSweep.length} users with auto-sweep enabled`,
+      );
 
       for (const user of usersWithAutoSweep) {
         await this.processSweepForUser(user);
@@ -64,12 +68,16 @@ export class SweepTasksService {
       }
 
       if (!user.sweepThreshold || user.sweepThreshold <= 0) {
-        this.logger.warn(`User ${user.id} has invalid sweep threshold, skipping`);
+        this.logger.warn(
+          `User ${user.id} has invalid sweep threshold, skipping`,
+        );
         return;
       }
 
       if (!user.defaultSavingsProductId) {
-        this.logger.warn(`User ${user.id} has no default savings product, skipping`);
+        this.logger.warn(
+          `User ${user.id} has no default savings product, skipping`,
+        );
         return;
       }
 
@@ -99,7 +107,7 @@ export class SweepTasksService {
     try {
       // Get user's current wallet balance from Stellar
       const balance = await this.getWalletBalance(user.publicKey!);
-      
+
       this.logger.debug(
         `User ${user.id} balance: ${balance} XLM, threshold: ${user.sweepThreshold} XLM`,
       );
@@ -110,7 +118,10 @@ export class SweepTasksService {
       // Only return positive excess amounts
       return excess > 0 ? excess : 0;
     } catch (error) {
-      this.logger.error(`Error calculating excess funds for user ${user.id}`, error);
+      this.logger.error(
+        `Error calculating excess funds for user ${user.id}`,
+        error,
+      );
       return 0;
     }
   }
@@ -160,7 +171,7 @@ export class SweepTasksService {
     // 3. Submitting to the network
     // 4. Recording the sweep in the database
     // 5. Creating a UserSubscription record if needed
-    
+
     // Example pseudo-code:
     // const transaction = await this.stellarService.createPaymentTransaction(
     //   user.publicKey,
@@ -171,6 +182,14 @@ export class SweepTasksService {
     // await this.recordSweepTransaction(user.id, amount, user.defaultSavingsProductId);
 
     this.logger.log(`[STUB] Sweep completed for user ${user.id}`);
+
+    // Emit sweep.completed event for notifications
+    this.eventEmitter.emit('sweep.completed', {
+      userId: user.id,
+      amount: amount.toString(),
+      publicKey: user.publicKey,
+      timestamp: new Date(),
+    });
   }
 
   /**
@@ -179,7 +198,7 @@ export class SweepTasksService {
    */
   async triggerManualSweep(userId: string): Promise<void> {
     this.logger.log(`Manual sweep triggered for user ${userId}`);
-    
+
     const user = await this.userRepository.findOne({
       where: { id: userId },
     });

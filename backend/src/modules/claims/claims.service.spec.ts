@@ -3,12 +3,14 @@ import { ClaimsService } from './claims.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { MedicalClaim, ClaimStatus } from './entities/medical-claim.entity';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HospitalIntegrationService } from '../hospital-integration/hospital-integration.service';
 
 describe('ClaimsService', () => {
   let service: ClaimsService;
   let repository: Repository<MedicalClaim>;
   let hospitalIntegrationService: HospitalIntegrationService;
+  let eventEmitter: EventEmitter2;
 
   const mockRepository = {
     create: jest.fn(),
@@ -25,6 +27,13 @@ describe('ClaimsService', () => {
     resetCircuitBreaker: jest.fn(),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+    on: jest.fn(),
+    once: jest.fn(),
+    off: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -37,12 +46,21 @@ describe('ClaimsService', () => {
           provide: HospitalIntegrationService,
           useValue: mockHospitalIntegrationService,
         },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
+        },
       ],
     }).compile();
 
     service = module.get<ClaimsService>(ClaimsService);
-    repository = module.get<Repository<MedicalClaim>>(getRepositoryToken(MedicalClaim));
-    hospitalIntegrationService = module.get<HospitalIntegrationService>(HospitalIntegrationService);
+    repository = module.get<Repository<MedicalClaim>>(
+      getRepositoryToken(MedicalClaim),
+    );
+    hospitalIntegrationService = module.get<HospitalIntegrationService>(
+      HospitalIntegrationService,
+    );
+    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
   it('should be defined', () => {

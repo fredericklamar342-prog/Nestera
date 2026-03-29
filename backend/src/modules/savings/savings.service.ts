@@ -3,38 +3,39 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  Inject,
 } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
-import { SavingsProduct } from './entities/savings-product.entity';
+import { SavingsProduct, RiskLevel } from './entities/savings-product.entity';
 import {
   UserSubscription,
   SubscriptionStatus,
 } from './entities/user-subscription.entity';
-import {
-  SavingsGoal,
-  SavingsGoalStatus,
-} from './entities/savings-goal.entity';
+import { SavingsGoal, SavingsGoalStatus } from './entities/savings-goal.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { SavingsProductDto } from './dto/savings-product.dto';
+import { GoalProgressDto } from './dto/goal-progress.dto';
 import { User } from '../user/entities/user.entity';
 import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
+import { PredictiveEvaluatorService } from './services/predictive-evaluator.service';
 
-export interface SavingsGoalProgress {
-  id: string;
-  userId: string;
-  goalName: string;
-  targetAmount: number;
-  targetDate: Date;
-  status: SavingsGoalStatus;
-  metadata: SavingsGoal['metadata'];
-  createdAt: Date;
-  updatedAt: Date;
-  currentBalance: number;
-  percentageComplete: number;
+export type SavingsGoalProgress = GoalProgressDto;
+
+export interface UserSubscriptionWithLiveBalance extends UserSubscription {
+  indexedAmount: number;
+  liveBalance: number;
+  liveBalanceStroops: number;
+  balanceSource: 'rpc' | 'cache';
+  vaultContractId: string | null;
 }
 
 const STROOPS_PER_XLM = 10_000_000;
+const POOLS_CACHE_KEY = 'pools_all';
 
 @Injectable()
 export class SavingsService {
@@ -50,17 +51,24 @@ export class SavingsService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly blockchainSavingsService: BlockchainSavingsService,
+    private readonly predictiveEvaluatorService: PredictiveEvaluatorService,
+    private readonly configService: ConfigService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
   async createProduct(dto: CreateProductDto): Promise<SavingsProduct> {
     if (dto.minAmount > dto.maxAmount) {
-      throw new BadRequestException('minAmount must be less than or equal to maxAmount');
+      throw new BadRequestException(
+        'minAmount must be less than or equal to maxAmount',
+      );
     }
     const product = this.productRepository.create({
       ...dto,
       isActive: dto.isActive ?? true,
     });
-    return await this.productRepository.save(product);
+    const savedProduct = await this.productRepository.save(product);
+    await this.invalidatePoolsCache();
+    return savedProduct;
   }
 
   async updateProduct(
@@ -71,18 +79,67 @@ export class SavingsService {
     if (!product) {
       throw new NotFoundException(`Savings product ${id} not found`);
     }
-    if (dto.minAmount != null && dto.maxAmount != null && dto.minAmount > dto.maxAmount) {
-      throw new BadRequestException('minAmount must be less than or equal to maxAmount');
+    if (
+      dto.minAmount != null &&
+      dto.maxAmount != null &&
+      dto.minAmount > dto.maxAmount
+    ) {
+      throw new BadRequestException(
+        'minAmount must be less than or equal to maxAmount',
+      );
     }
     Object.assign(product, dto);
-    return await this.productRepository.save(product);
+    const updatedProduct = await this.productRepository.save(product);
+    await this.invalidatePoolsCache();
+    return updatedProduct;
   }
 
-  async findAllProducts(activeOnly = false): Promise<SavingsProduct[]> {
-    return await this.productRepository.find({
+  async findAllProducts(
+    activeOnly = false,
+    sort?: 'apy' | 'tvl',
+  ): Promise<SavingsProductDto[]> {
+    const products = await this.productRepository.find({
       where: activeOnly ? { isActive: true } : undefined,
-      order: { createdAt: 'DESC' },
+      relations: ['subscriptions'],
     });
+
+    const dtos: SavingsProductDto[] = products.map((product) => {
+      // Calculate TVL by summing active subscriptions
+      const tvlAmount = product.subscriptions
+        ? product.subscriptions
+            .filter((s) => s.status === SubscriptionStatus.ACTIVE)
+            .reduce((sum, s) => sum + Number(s.amount), 0)
+        : 0;
+
+      return {
+        id: product.id,
+        name: product.name,
+        type: product.type,
+        description: product.description,
+        interestRate: Number(product.interestRate),
+        minAmount: Number(product.minAmount),
+        maxAmount: Number(product.maxAmount),
+        tenureMonths: product.tenureMonths,
+        contractId: product.contractId,
+        isActive: product.isActive,
+        riskLevel: product.riskLevel || RiskLevel.LOW,
+        tvlAmount,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt,
+      };
+    });
+
+    // Handle local sorting
+    if (sort === 'apy') {
+      dtos.sort((a, b) => b.interestRate - a.interestRate);
+    } else if (sort === 'tvl') {
+      dtos.sort((a, b) => b.tvlAmount - a.tvlAmount);
+    } else {
+      // Default sort by createdAt DESC
+      dtos.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+
+    return dtos;
   }
 
   async findOneProduct(id: string): Promise<SavingsProduct> {
@@ -93,6 +150,31 @@ export class SavingsService {
     return product;
   }
 
+  async findProductWithLiveData(id: string): Promise<{
+    product: SavingsProduct;
+    totalAssets: number;
+  }> {
+    const product = await this.findOneProduct(id);
+
+    let totalAssets = 0;
+
+    // Query live contract data if contractId is available
+    if (product.contractId) {
+      try {
+        totalAssets = await this.blockchainSavingsService.getVaultTotalAssets(
+          product.contractId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to fetch live total_assets for contract ${product.contractId}: ${(error as Error).message}`,
+        );
+        // Continue with totalAssets = 0 if contract query fails
+      }
+    }
+
+    return { product, totalAssets };
+  }
+
   async subscribe(
     userId: string,
     productId: string,
@@ -100,9 +182,14 @@ export class SavingsService {
   ): Promise<UserSubscription> {
     const product = await this.findOneProduct(productId);
     if (!product.isActive) {
-      throw new BadRequestException('This savings product is not available for subscription');
+      throw new BadRequestException(
+        'This savings product is not available for subscription',
+      );
     }
-    if (amount < Number(product.minAmount) || amount > Number(product.maxAmount)) {
+    if (
+      amount < Number(product.minAmount) ||
+      amount > Number(product.maxAmount)
+    ) {
       throw new BadRequestException(
         `Amount must be between ${product.minAmount} and ${product.maxAmount}`,
       );
@@ -117,7 +204,7 @@ export class SavingsService {
       endDate: product.tenureMonths
         ? (() => {
             const d = new Date();
-            d.setMonth(d.getMonth() + product.tenureMonths!);
+            d.setMonth(d.getMonth() + product.tenureMonths);
             return d;
           })()
         : null,
@@ -125,16 +212,11 @@ export class SavingsService {
     return await this.subscriptionRepository.save(subscription);
   }
 
-  async findMySubscriptions(userId: string): Promise<UserSubscription[]> {
-    return await this.subscriptionRepository.find({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async findMyGoals(userId: string): Promise<SavingsGoalProgress[]> {
-    const [goals, user] = await Promise.all([
-      this.goalRepository.find({
+  async findMySubscriptions(
+    userId: string,
+  ): Promise<UserSubscriptionWithLiveBalance[]> {
+    const [subscriptions, user] = await Promise.all([
+      this.subscriptionRepository.find({
         where: { userId },
         order: { createdAt: 'DESC' },
       }),
@@ -144,23 +226,176 @@ export class SavingsService {
       }),
     ]);
 
+    if (!subscriptions.length) {
+      return [];
+    }
+
+    if (!user?.publicKey) {
+      return subscriptions.map((subscription) =>
+        this.mapSubscriptionWithLiveBalance(
+          subscription,
+          Number(subscription.amount),
+          Math.round(Number(subscription.amount) * STROOPS_PER_XLM),
+          'cache',
+          null,
+        ),
+      );
+    }
+
+    const userPublicKey = user.publicKey;
+
+    const defaultVaultContractId =
+      this.configService.get<string>('stellar.contractId') || null;
+
+    return await Promise.all(
+      subscriptions.map(async (subscription) => {
+        const fallbackAmount = Number(subscription.amount);
+        const vaultContractId =
+          this.resolveVaultContractId(subscription) ?? defaultVaultContractId;
+
+        if (!vaultContractId) {
+          return this.mapSubscriptionWithLiveBalance(
+            subscription,
+            fallbackAmount,
+            Math.round(fallbackAmount * STROOPS_PER_XLM),
+            'cache',
+            null,
+          );
+        }
+
+        const liveBalanceStroops =
+          await this.blockchainSavingsService.getUserVaultBalance(
+            vaultContractId,
+            userPublicKey,
+          );
+
+        return this.mapSubscriptionWithLiveBalance(
+          subscription,
+          this.stroopsToDecimal(liveBalanceStroops),
+          liveBalanceStroops,
+          'rpc',
+          vaultContractId,
+        );
+      }),
+    );
+  }
+
+  async invalidatePoolsCache(): Promise<void> {
+    await this.cacheManager.del(POOLS_CACHE_KEY);
+    this.logger.log(
+      `Invalidated savings products cache key: ${POOLS_CACHE_KEY}`,
+    );
+  }
+
+  async findMyGoals(userId: string): Promise<SavingsGoalProgress[]> {
+    const [goals, user, subscriptions] = await Promise.all([
+      this.goalRepository.find({
+        where: { userId },
+        order: { createdAt: 'DESC' },
+      }),
+      this.userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'publicKey'],
+      }),
+      this.subscriptionRepository.find({
+        where: { userId },
+        relations: ['product'],
+      }),
+    ]);
+
     if (!goals.length) {
       return [];
     }
 
     const liveVaultBalanceStroops = user?.publicKey
-      ? (await this.blockchainSavingsService.getUserSavingsBalance(user.publicKey))
-          .total
+      ? (
+          await this.blockchainSavingsService.getUserSavingsBalance(
+            user.publicKey,
+          )
+        ).total
       : 0;
 
+    // Calculate average yield rate from active subscriptions
+    const averageYieldRate = this.calculateAverageYieldRate(subscriptions);
+
     return goals.map((goal) =>
-      this.mapGoalWithProgress(goal, liveVaultBalanceStroops),
+      this.mapGoalWithProgress(goal, liveVaultBalanceStroops, averageYieldRate),
     );
+  }
+
+  async createGoal(
+    userId: string,
+    goalName: string,
+    targetAmount: number,
+    targetDate: Date,
+    metadata?: any,
+  ): Promise<SavingsGoal> {
+    // Additional server-side validation for future date
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const target = new Date(targetDate);
+    target.setHours(0, 0, 0, 0);
+
+    if (target <= now) {
+      throw new BadRequestException('Target date must be in the future');
+    }
+
+    const goal = this.goalRepository.create({
+      userId,
+      goalName,
+      targetAmount,
+      targetDate,
+      metadata: metadata || null,
+      status: SavingsGoalStatus.IN_PROGRESS,
+    });
+
+    return await this.goalRepository.save(goal);
+  }
+
+  async updateGoal(
+    goalId: string,
+    userId: string,
+    updates: {
+      goalName?: string;
+      targetAmount?: number;
+      targetDate?: Date;
+      status?: any;
+      metadata?: any;
+    },
+  ): Promise<SavingsGoal> {
+    const goal = await this.goalRepository.findOne({
+      where: { id: goalId, userId },
+    });
+
+    if (!goal) {
+      throw new NotFoundException(
+        `Savings goal ${goalId} not found or does not belong to user`,
+      );
+    }
+
+    Object.assign(goal, updates);
+    return await this.goalRepository.save(goal);
+  }
+
+  async deleteGoal(goalId: string, userId: string): Promise<void> {
+    const goal = await this.goalRepository.findOne({
+      where: { id: goalId, userId },
+    });
+
+    if (!goal) {
+      throw new NotFoundException(
+        `Savings goal ${goalId} not found or does not belong to user`,
+      );
+    }
+
+    await this.goalRepository.remove(goal);
   }
 
   private mapGoalWithProgress(
     goal: SavingsGoal,
     liveVaultBalanceStroops: number,
+    yieldRate: number = 0,
   ): SavingsGoalProgress {
     const targetAmount = Number(goal.targetAmount);
     const currentBalance = this.stroopsToDecimal(liveVaultBalanceStroops);
@@ -168,6 +403,27 @@ export class SavingsService {
       liveVaultBalanceStroops,
       targetAmount,
     );
+
+    // Chronological Predictive Evaluator: Calculate projected balance at target date
+    const projectedBalance =
+      this.predictiveEvaluatorService.calculateProjectedBalance(
+        currentBalance,
+        yieldRate,
+        goal.targetDate,
+      );
+
+    // Determine if user is off track
+    const isOffTrack = this.predictiveEvaluatorService.isOffTrack(
+      projectedBalance,
+      targetAmount,
+    );
+
+    // Calculate the gap between target and projected balance
+    const projectionGap =
+      this.predictiveEvaluatorService.calculateProjectionGap(
+        targetAmount,
+        projectedBalance,
+      );
 
     return {
       id: goal.id,
@@ -181,7 +437,55 @@ export class SavingsService {
       updatedAt: goal.updatedAt,
       currentBalance,
       percentageComplete,
+      projectedBalance,
+      isOffTrack,
+      projectionGap,
+      appliedYieldRate: yieldRate,
     };
+  }
+
+  private mapSubscriptionWithLiveBalance(
+    subscription: UserSubscription,
+    liveBalance: number,
+    liveBalanceStroops: number,
+    balanceSource: 'rpc' | 'cache',
+    vaultContractId: string | null,
+  ): UserSubscriptionWithLiveBalance {
+    return {
+      ...subscription,
+      indexedAmount: Number(subscription.amount),
+      liveBalance,
+      liveBalanceStroops,
+      balanceSource,
+      vaultContractId,
+    };
+  }
+
+  private resolveVaultContractId(
+    subscription: UserSubscription,
+  ): string | null {
+    const candidates = [
+      (subscription as UserSubscription & { contractId?: unknown }).contractId,
+      (
+        subscription.product as SavingsProduct & {
+          contractId?: unknown;
+          vaultContractId?: unknown;
+        }
+      )?.contractId,
+      (
+        subscription.product as SavingsProduct & {
+          contractId?: unknown;
+          vaultContractId?: unknown;
+        }
+      )?.vaultContractId,
+    ];
+
+    const contractId = candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && candidate.trim().length > 0,
+    );
+
+    return contractId ?? null;
   }
 
   private calculatePercentageComplete(
@@ -204,5 +508,26 @@ export class SavingsService {
 
   private stroopsToDecimal(amountInStroops: number): number {
     return Number((amountInStroops / STROOPS_PER_XLM).toFixed(2));
+  }
+
+  private calculateAverageYieldRate(subscriptions: UserSubscription[]): number {
+    if (!subscriptions.length) {
+      return 0;
+    }
+
+    const activeSubscriptions = subscriptions.filter(
+      (sub) => sub.status === SubscriptionStatus.ACTIVE,
+    );
+
+    if (!activeSubscriptions.length) {
+      return 0;
+    }
+
+    const totalYield = activeSubscriptions.reduce((sum, sub) => {
+      const yieldRate = Number(sub.product?.interestRate || 0);
+      return sum + yieldRate;
+    }, 0);
+
+    return totalYield / activeSubscriptions.length;
   }
 }

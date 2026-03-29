@@ -64,12 +64,40 @@ export class UserService {
     return user;
   }
 
+  async findByWalletAddress(walletAddress: string) {
+    const user = await this.userRepository.findOne({
+      where: { walletAddress },
+    });
+    return user;
+  }
+
   async create(data: Partial<User>) {
     const newEntity = this.userRepository.create(data);
-    const savedUser = await this.userRepository.save(newEntity);
 
-    // Return with only selected fields to match old behavior
-    return this.findById(savedUser.id);
+    try {
+      const savedUser = await this.userRepository.save(newEntity);
+      // Return with only selected fields to match old behavior
+      return this.findById(savedUser.id);
+    } catch (error: any) {
+      // Handle unique constraint violations from database
+      if (error.code === '23505') {
+        // PostgreSQL unique constraint violation
+        // Determine which column caused the conflict
+        if (error.detail?.includes('email')) {
+          throw new ConflictException('Email already exists');
+        } else if (error.detail?.includes('walletAddress')) {
+          throw new ConflictException(
+            'This wallet address is already linked to another account',
+          );
+        } else if (error.detail?.includes('publicKey')) {
+          throw new ConflictException(
+            'This public key is already linked to another account',
+          );
+        }
+        throw new ConflictException('This record already exists');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -94,7 +122,7 @@ export class UserService {
         'name',
         'bio',
         'avatarUrl',
-        'publicKey',   // exposed on the wire as `walletAddress`
+        'publicKey', // exposed on the wire as `walletAddress`
         'role',
         'kycStatus',
         'createdAt',
@@ -152,6 +180,58 @@ export class UserService {
     return this.findById(userId);
   }
 
+  /**
+   * Link a web3 wallet address to a user account.
+   *
+   * Guards:
+   *  - The requesting user must exist.
+   *  - The `walletAddress` must not already be claimed by **any** account (including the caller's).
+   *    Linking the same address twice returns a clear conflict rather than a silent no-op.
+   *
+   * @param userId User ID to link wallet to
+   * @param walletAddress Web3 wallet address (e.g., EVM address)
+   * @throws NotFoundException if user not found
+   * @throws ConflictException if wallet already linked to this or another account
+   */
+  async linkWalletAddress(
+    userId: string,
+    walletAddress: string,
+  ): Promise<User> {
+    // Verify caller exists
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Prevent duplicate wallet addresses across the entire users table
+    const existingOwner = await this.findByWalletAddress(walletAddress);
+    if (existingOwner) {
+      if (existingOwner.id === userId) {
+        throw new ConflictException(
+          'This wallet address is already linked to your account',
+        );
+      }
+      throw new ConflictException(
+        'This wallet address is already linked to another account',
+      );
+    }
+
+    try {
+      await this.userRepository.update(userId, { walletAddress });
+    } catch (error: any) {
+      // Handle unique constraint violation from database
+      if (error.code === '23505') {
+        // PostgreSQL unique constraint violation
+        throw new ConflictException(
+          'This wallet address is already linked to another account',
+        );
+      }
+      throw error;
+    }
+
+    return this.findById(userId);
+  }
+
   async updateAvatar(userId: string, avatarUrl: string) {
     await this.findById(userId);
 
@@ -177,7 +257,7 @@ export class UserService {
     const updateData: any = {
       kycStatus: 'APPROVED',
     };
-    
+
     await this.userRepository.update(userId, updateData);
 
     return this.findById(userId);
@@ -202,4 +282,3 @@ export class UserService {
     return { message: 'User deleted successfully' };
   }
 }
-

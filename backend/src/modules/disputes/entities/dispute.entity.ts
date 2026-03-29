@@ -1,4 +1,13 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+} from 'typeorm';
 import { MedicalClaim } from '../../claims/entities/medical-claim.entity';
 
 export enum DisputeStatus {
@@ -29,7 +38,9 @@ export class Dispute {
   @Column({ type: 'enum', enum: DisputeStatus, default: DisputeStatus.OPEN })
   status: DisputeStatus;
 
-  @OneToMany(() => DisputeMessage, message => message.dispute, { cascade: true })
+  @OneToMany(() => DisputeMessage, (message) => message.dispute, {
+    cascade: true,
+  })
   messages: DisputeMessage[];
 
   @CreateDateColumn()
@@ -47,7 +58,7 @@ export class DisputeMessage {
   @Column()
   disputeId: string;
 
-  @ManyToOne(() => Dispute, dispute => dispute.messages)
+  @ManyToOne(() => Dispute, (dispute) => dispute.messages)
   @JoinColumn({ name: 'disputeId' })
   dispute: Dispute;
 

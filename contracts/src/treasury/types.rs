@@ -12,6 +12,15 @@ pub struct Treasury {
     pub operations_balance: i128,
 }
 
+/// Defines which treasury sub-balance is used during withdrawal.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TreasuryPool {
+    Reserve,
+    Rewards,
+    Operations,
+}
+
 impl Default for Treasury {
     fn default() -> Self {
         Self::new()
@@ -27,6 +36,41 @@ impl Treasury {
             treasury_balance: 0,
             rewards_balance: 0,
             operations_balance: 0,
+        }
+    }
+}
+
+/// Withdrawal safety limits used to protect treasury funds.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TreasurySecurityConfig {
+    pub max_withdrawal_per_tx: i128,
+    pub daily_withdrawal_cap: i128,
+}
+
+impl TreasurySecurityConfig {
+    pub fn default_limits() -> Self {
+        Self {
+            // Conservative defaults; admin can tune via set_treasury_limits.
+            max_withdrawal_per_tx: 10_000_000,
+            daily_withdrawal_cap: 50_000_000,
+        }
+    }
+}
+
+/// Tracks daily withdrawal usage for treasury operations.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TreasuryDailyWithdrawal {
+    pub window_start_ts: u64,
+    pub withdrawn_amount: i128,
+}
+
+impl TreasuryDailyWithdrawal {
+    pub fn new(window_start_ts: u64) -> Self {
+        Self {
+            window_start_ts,
+            withdrawn_amount: 0,
         }
     }
 }

@@ -11,7 +11,8 @@ export class UpdateSweepSettingsDto {
   autoSweepEnabled?: boolean;
 
   @ApiProperty({
-    description: 'Minimum balance threshold in XLM before sweeping excess funds',
+    description:
+      'Minimum balance threshold in XLM before sweeping excess funds',
     example: 100.0,
     minimum: 0,
   })

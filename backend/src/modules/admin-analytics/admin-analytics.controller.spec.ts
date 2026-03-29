@@ -12,7 +12,9 @@ describe('AdminAnalyticsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AdminAnalyticsController],
-      providers: [{ provide: AdminAnalyticsService, useValue: mockAnalyticsService }],
+      providers: [
+        { provide: AdminAnalyticsService, useValue: mockAnalyticsService },
+      ],
     }).compile();
 
     controller = module.get<AdminAnalyticsController>(AdminAnalyticsController);

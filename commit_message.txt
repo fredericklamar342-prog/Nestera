@@ -1,0 +1,38 @@
+feat(backend): add transaction enrichment structuring with amount formatting and explorer links
+
+## Summary
+
+Implemented transaction response enrichment interceptor that formats raw database amounts into user-friendly displays and adds Stellar Expert exploration links.
+
+## Changes
+
+- **New Interceptor**: `TransactionFormattingInterceptor` in `common/interceptors/`
+  - Formats amounts: `"100000000"` → `"$100.00"` with proper USDC precision (7 decimals)
+  - Generates Stellar Expert links from transaction hashes
+  - Configurable asset mapping system
+
+- **Module Updates**:
+  - `transactions.module.ts`: Added global interceptor provider
+  - `transaction-response.dto.ts`: Added `amountFormatted` and `explorerLinks` fields
+  - `transactions.service.ts`: Added asset ID extraction logic
+
+## Acceptance Criteria ✅
+
+- ✅ Construct explicit formatter logic attaching asset mapping symbols
+- ✅ Evaluate Stellar contract precision parameters intelligently
+- ✅ Render UI outputs exactly (e.g., `amountFormatted.display: "$500.00"`)
+- ✅ Dynamically attach canonical Stellar Expert exploration links
+
+## Files Changed
+
+- `backend/src/common/interceptors/transaction-formatting.interceptor.ts` (new)
+- `backend/src/modules/transactions/transactions.module.ts`
+- `backend/src/modules/transactions/dto/transaction-response.dto.ts`
+- `backend/src/modules/transactions/transactions.service.ts`
+- `backend/src/common/interceptors/TRANSACTION_FORMATTING_README.md` (new)
+
+## Testing
+
+- ✅ `npm run build` passes
+- ✅ TypeScript compilation successful
+- ✅ Interceptor integration verified

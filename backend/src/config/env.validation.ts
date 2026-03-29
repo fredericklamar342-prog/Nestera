@@ -24,7 +24,11 @@ export const envValidationSchema = Joi.object({
   HORIZON_URL: Joi.string().uri().required(),
   CONTRACT_ID: Joi.string().required(),
   STELLAR_WEBHOOK_SECRET: Joi.string().min(16).required(),
-  STELLAR_EVENT_POLL_INTERVAL: Joi.number().integer().min(1000).default(10000).optional(),
+  STELLAR_EVENT_POLL_INTERVAL: Joi.number()
+    .integer()
+    .min(1000)
+    .default(10000)
+    .optional(),
 
   // Comma-separated fallback RPC / Horizon endpoints for Soroban Testnet
   SOROBAN_RPC_FALLBACK_URLS: Joi.string().optional(),

@@ -4,38 +4,37 @@ import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('test-throttling')
 export class TestThrottlingController {
-  
   @Get()
   getRateLimitedEndpoint() {
-    return { 
+    return {
       message: 'This endpoint is rate limited (100 requests per minute)',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
   @Get('skip')
   @SkipThrottle()
   getUnlimitedEndpoint() {
-    return { 
+    return {
       message: 'This endpoint skips rate limiting',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
   @Post('webhook')
   @SkipThrottle()
   handleWebhook() {
-    return { 
+    return {
       message: 'Webhook endpoint with no rate limiting',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 
   @Get('burst')
   getBurstEndpoint() {
-    return { 
+    return {
       message: 'Test burst requests - this should be rate limited',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }

@@ -133,11 +133,30 @@ fn test_strategy_full_lifecycle() {
     });
     assert_eq!(current_yield, 900);
 
-    // Actually checking treasury balance via Nestera contract config functions:
-    // (Assuming Nestera handles treasury balance mapping natively if we're not using tokens)
-    // Wait, get_protocol_fee_balance exists on NesteraContract
-    let treasury_balances = client.get_protocol_fee_balance(&treasury);
-    assert_eq!(treasury_balances, 100);
+    // Verify treasury balance via the Treasury struct.
+    // treasury_balance accumulates ALL protocol fees:
+    //   - 5,000 deposit fee (10% of 50,000 flexi deposit)
+    //   - 100 performance fee (10% of 1,000 harvested yield)
+    // Total expected = 5,100
+    let treasury_balances = client.get_treasury_balance();
+    assert_eq!(
+        treasury_balances, 5_100,
+        "treasury_balance must include deposit + performance fees"
+    );
+
+    // Also verify the performance fee is correctly embedded in the total
+    let total_fees = client.get_total_fees();
+    assert_eq!(
+        total_fees, 5_100,
+        "total_fees_collected must match treasury_balance before allocation"
+    );
+
+    // User yield: 900 (90% of 1,000 harvest)
+    let total_yield = client.get_total_yield();
+    assert_eq!(
+        total_yield, 900,
+        "total_yield_earned must equal user portion of harvest"
+    );
 
     // 6. Withdraw user funds (strategy position)
     let withdrawn_from_strat = client.withdraw_lock_strategy(&user1, &lock_id, &user1);

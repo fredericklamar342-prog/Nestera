@@ -5,15 +5,15 @@ import { HospitalIntegrationService } from './hospital-integration.service';
 import { HospitalIntegrationController } from './hospital-integration.controller';
 
 @Module({
-    imports: [
-        HttpModule.register({
-            timeout: 10000,
-            maxRedirects: 5,
-        }),
-        ConfigModule,
-    ],
-    controllers: [HospitalIntegrationController],
-    providers: [HospitalIntegrationService],
-    exports: [HospitalIntegrationService],
+  imports: [
+    HttpModule.register({
+      timeout: 10000,
+      maxRedirects: 5,
+    }),
+    ConfigModule,
+  ],
+  controllers: [HospitalIntegrationController],
+  providers: [HospitalIntegrationService],
+  exports: [HospitalIntegrationService],
 })
-export class HospitalIntegrationModule { }
+export class HospitalIntegrationModule {}

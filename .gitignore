@@ -17,3 +17,5 @@ PR_DESCRIPTION_ISSUE74.md
 .agent/
 .agents/
 issue.md
+
+/contracts/test_snapshots

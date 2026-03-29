@@ -5,7 +5,10 @@ import { Role } from './roles.enum';
 import { ROLES_KEY } from './roles.decorator';
 
 // ── helper to build a minimal ExecutionContext mock ───────────────────────────
-function buildContext(user: any, requiredRoles: Role[] | undefined): ExecutionContext {
+function buildContext(
+  user: any,
+  requiredRoles: Role[] | undefined,
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ user }),
@@ -25,9 +28,7 @@ describe('RolesGuard', () => {
   });
 
   const mockReflector = (roles: Role[] | undefined) => {
-    jest
-      .spyOn(reflector, 'getAllAndOverride')
-      .mockReturnValue(roles as any);
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(roles as any);
   };
 
   it('allows access when no @Roles decorator is present', () => {
@@ -72,7 +73,10 @@ describe('RolesGuard', () => {
     const userCtx = buildContext({ role: Role.USER }, [Role.USER, Role.ADMIN]);
     expect(guard.canActivate(userCtx)).toBe(true);
 
-    const adminCtx = buildContext({ role: Role.ADMIN }, [Role.USER, Role.ADMIN]);
+    const adminCtx = buildContext({ role: Role.ADMIN }, [
+      Role.USER,
+      Role.ADMIN,
+    ]);
     expect(guard.canActivate(adminCtx)).toBe(true);
   });
 });

@@ -1,220 +1,123 @@
-# Issue #195: Web3 RPC Fallback & Retry Strategy - Implementation Summary
+# Enhanced Health Check Implementation Summary
 
-## Overview
+## Issue #315: [Backend] Enhance NestJS Health Check Logic
 
-Successfully implemented a robust RPC fallback and retry strategy for Stellar Horizon and Soroban RPC endpoints. The system now automatically handles network failures by retrying requests and failing over to backup endpoints seamlessly.
+### Implementation Complete ✅
 
-## What Was Implemented
+#### Files Created
+1. **src/modules/health/indicators/typeorm.health.ts** (60 lines)
+   - Custom TypeORM health indicator
+   - Validates database connectivity
+   - Enforces ~200ms response threshold
+   - Returns detailed response metrics
 
-### 1. Core Components
+2. **src/modules/health/indicators/rpc.health.ts** (70 lines)
+   - RPC endpoint health indicator
+   - Checks endpoint availability via getHealth() call
+   - Tracks response times
+   - Reports current active endpoint and total endpoints
 
-#### RpcClientWrapper (`rpc-client.wrapper.ts`)
-- Generic wrapper for managing multiple RPC/Horizon endpoints
-- Automatic retry logic with exponential backoff
-- Seamless failover to backup endpoints
-- Configurable timeout, retry count, and delay
-- Comprehensive logging for monitoring and alerting
-- Priority-based endpoint routing
+3. **src/modules/health/indicators/indexer.health.ts** (65 lines)
+   - Indexer service health indicator
+   - Validates ledger processing within 15 seconds
+   - Tracks time since last ledger processed
+   - Provides detailed timing information
 
-#### Updated StellarService (`stellar.service.ts`)
-- Integrated RpcClientWrapper for all RPC/Horizon operations
-- Maintains backward compatibility with existing API
-- Added `getEndpointsStatus()` method for monitoring
-- All existing methods now use automatic retry and failover
+#### Files Modified
+1. **src/modules/health/health.controller.ts**
+   - Replaced basic status endpoint with comprehensive health checks
+   - Added 3 endpoints: /health, /health/live, /health/ready
+   - Integrated all custom indicators
+   - Added Swagger documentation with examples
 
-#### Configuration Updates (`configuration.ts`)
-- Support for multiple fallback RPC URLs
-- Support for multiple fallback Horizon URLs
-- Configurable retry parameters (max retries, delay, timeout)
-- Comma-separated URL lists in environment variables
+2. **src/modules/health/health.module.ts**
+   - Integrated @nestjs/terminus
+   - Registered all custom health indicators
+   - Imported BlockchainModule for service dependencies
+   - Configured TypeORM feature module
 
-#### Monitoring Endpoint (`blockchain.controller.ts`)
-- New `/blockchain/rpc/status` endpoint
-- Returns current active endpoints and all configured fallbacks
-- Useful for DevOps monitoring and debugging
+3. **src/modules/blockchain/indexer.service.ts**
+   - Added lastProcessedTimestamp tracking
+   - Added getLastProcessedTimestamp() public method
+   - Updates timestamp on successful event processing
 
-### 2. Configuration
+4. **src/modules/blockchain/blockchain.module.ts**
+   - Exported IndexerService for cross-module access
 
-#### Environment Variables Added
-```env
-# Fallback endpoints
-SOROBAN_RPC_FALLBACK_URLS=url1,url2,url3
-HORIZON_FALLBACK_URLS=url1,url2
+#### Dependencies Added
+- @nestjs/terminus@^11.0.0 (health check framework)
 
-# Retry configuration
-RPC_MAX_RETRIES=3
-RPC_RETRY_DELAY=1000
-RPC_TIMEOUT=10000
+### Acceptance Criteria Fulfillment
+
+✅ **Custom TypeORM TypeOrmHealthIndicator**
+- Assures query access passes locally
+- Explicitly enforces ~200ms dynamically mapped bounds
+- Returns detailed response time metrics
+
+✅ **Indexer Service Validation**
+- Actively resolves and validates ledger processing
+- Ensures processing within last 15 seconds
+- Prevents background task halting detection
+
+✅ **Native Response Mappings**
+- Comprehensive object mappings for uptime integrations
+- Compatible with Datadog and UptimeRobot
+- 503 Service Unavailable on failures for proper fallback routing
+
+### API Endpoints
+
+#### GET /health
+Full stack health check with all indicators
+```json
+{
+  "status": "ok",
+  "checks": {
+    "database": {
+      "status": "up",
+      "responseTime": "45ms",
+      "threshold": "200ms"
+    },
+    "rpc": {
+      "status": "up",
+      "responseTime": "120ms",
+      "currentEndpoint": "https://soroban-testnet.stellar.org",
+      "totalEndpoints": 2
+    },
+    "indexer": {
+      "status": "up",
+      "timeSinceLastProcess": "3500ms",
+      "threshold": "15000ms",
+      "lastProcessedTime": "2026-03-25T10:30:45.123Z"
+    }
+  }
+}
 ```
 
-### 3. Testing
+#### GET /health/live
+Kubernetes liveness probe (simple uptime check)
 
-#### Unit Tests
-- **rpc-client.wrapper.spec.ts**: 13 tests covering all retry and failover scenarios
-  - Endpoint sorting by priority
-  - Successful first attempt
-  - Retry on failure
-  - Failover to next endpoint
-  - All endpoints exhausted
-  - Timeout handling
-  - Error cases
+#### GET /health/ready
+Kubernetes readiness probe (database + RPC validation)
 
-- **stellar.service.spec.ts**: 5 tests updated for new implementation
-  - Transaction mapping
-  - Error handling
-  - Limit parameter handling
+### Testing Results
+- ✅ All 117 existing tests pass
+- ✅ Build successful with no errors
+- ✅ Linting passes
+- ✅ No breaking changes
 
-All tests passing ✅
+### Branch
+`feature/enhanced-health-check`
 
-### 4. Documentation
+### Commits (6 total)
+1. chore: add @nestjs/terminus dependency
+2. feat: create custom health indicators
+3. feat: add ledger processing timestamp tracking
+4. refactor: export IndexerService from BlockchainModule
+5. feat: enhance health controller with comprehensive checks
+6. feat: update HealthModule with terminus integration
 
-#### RPC_FALLBACK.md
-- Complete feature documentation
-- Configuration guide
-- How it works (retry logic, exponential backoff)
-- Monitoring and alerting setup
-- Production recommendations
-- Troubleshooting guide
-- Architecture diagram
-
-#### EXAMPLE_USAGE.md
-- Quick start guide
-- API examples
-- Code examples for custom methods
-- Testing failover behavior
-- Error handling patterns
-- Performance optimization tips
-- Production checklist
-
-## Acceptance Criteria Status
-
-✅ **Update StellarService to maintain an ordered array of acceptable RPC endpoints**
-- Implemented via `RpcClientWrapper` with priority-based endpoint arrays
-- Supports separate pools for RPC and Horizon endpoints
-
-✅ **Intercept network failures using a custom generalized wrapper or interceptor**
-- `RpcClientWrapper.executeWithRetry()` wraps all RPC/Horizon operations
-- Catches and handles all network errors automatically
-
-✅ **Automatically retry the request using the next available RPC node in the pool**
-- Retries each endpoint up to `RPC_MAX_RETRIES` times
-- Automatically moves to next endpoint after exhausting retries
-- Uses exponential backoff between retries
-
-✅ **Log severe failover events so DevOps is alerted**
-- Debug logs for each attempt
-- Warning logs for retries and successful failovers
-- Error logs (CRITICAL) for endpoint exhaustion and complete failures
-- Structured logging for easy monitoring and alerting
-
-## Key Features
-
-### Automatic Retry
-- Configurable retry count per endpoint
-- Exponential backoff (1s, 2s, 4s, etc.)
-- Request timeout protection
-
-### Seamless Failover
-- Priority-based endpoint selection
-- Automatic switching to backup endpoints
-- Maintains current endpoint for subsequent requests
-
-### Comprehensive Logging
-```
-DEBUG: Attempting rpc request on https://primary.stellar.org (attempt 1)
-WARN:  RPC request failed on https://primary.stellar.org (attempt 1/3): Network error
-WARN:  Successfully failed over to rpc endpoint: https://backup.stellar.org after 4 attempts
-ERROR: CRITICAL: All retries exhausted for rpc endpoint https://primary.stellar.org
-ERROR: CRITICAL: All rpc endpoints failed after 9 total attempts
-```
-
-### Monitoring
-- `/blockchain/rpc/status` endpoint for real-time status
-- Returns all configured endpoints and current active endpoint
-- Useful for health checks and debugging
-
-## Files Created/Modified
-
-### Created
-- `backend/src/modules/blockchain/rpc-client.wrapper.ts` - Core retry/failover logic
-- `backend/src/modules/blockchain/rpc-client.wrapper.spec.ts` - Unit tests
-- `backend/src/modules/blockchain/RPC_FALLBACK.md` - Feature documentation
-- `backend/src/modules/blockchain/EXAMPLE_USAGE.md` - Usage examples
-- `backend/IMPLEMENTATION_SUMMARY.md` - This file
-
-### Modified
-- `backend/src/modules/blockchain/stellar.service.ts` - Integrated RpcClientWrapper
-- `backend/src/modules/blockchain/stellar.service.spec.ts` - Updated tests
-- `backend/src/modules/blockchain/blockchain.controller.ts` - Added status endpoint
-- `backend/src/config/configuration.ts` - Added fallback URL configuration
-- `backend/.env.example` - Added new environment variables
-
-## Usage Example
-
-```typescript
-// Automatic retry and failover - no code changes needed!
-const transactions = await stellarService.getRecentTransactions(publicKey);
-
-// Monitor endpoint status
-const status = stellarService.getEndpointsStatus();
-console.log('Current RPC:', status.rpc.currentUrl);
-```
-
-## Production Recommendations
-
-1. **Configure Multiple Fallbacks**
-   ```env
-   SOROBAN_RPC_FALLBACK_URLS=https://rpc1.stellar.org,https://rpc2.stellar.org,https://rpc3.stellar.org
-   ```
-
-2. **Set Up Monitoring**
-   - Monitor `/blockchain/rpc/status` endpoint
-   - Set up alerts for CRITICAL log messages
-   - Track failover frequency
-
-3. **Optimize Settings**
-   ```env
-   RPC_MAX_RETRIES=5      # More retries for production
-   RPC_RETRY_DELAY=500    # Faster initial retry
-   RPC_TIMEOUT=15000      # Longer timeout for production
-   ```
-
-4. **Geographic Distribution**
-   - Use endpoints in different regions
-   - Improves reliability and latency
-
-## Testing
-
-All tests pass successfully:
-
-```bash
-# RPC wrapper tests
-pnpm test -- rpc-client.wrapper.spec
-✓ 13 tests passed
-
-# Stellar service tests  
-pnpm test -- stellar.service.spec
-✓ 5 tests passed
-```
-
-## Next Steps (Optional Enhancements)
-
-1. **Health Check Endpoint**: Periodic health checks for all configured endpoints
-2. **Metrics Collection**: Track failover frequency, response times, success rates
-3. **Circuit Breaker**: Temporarily disable failing endpoints
-4. **Dynamic Endpoint Management**: Add/remove endpoints at runtime
-5. **Load Balancing**: Distribute requests across healthy endpoints
-
-## Conclusion
-
-The implementation successfully addresses all acceptance criteria for Issue #195. The system now provides:
-
-- ✅ Robust failover mechanism
-- ✅ Automatic retry with exponential backoff
-- ✅ Comprehensive logging for DevOps
-- ✅ Easy configuration via environment variables
-- ✅ Backward compatibility with existing code
-- ✅ Full test coverage
-- ✅ Complete documentation
-
-The blockchain infrastructure is now resilient to RPC node failures, ensuring critical payment executions can proceed even when primary endpoints are unavailable.
+### Next Steps
+- Review and merge PR
+- Deploy to staging for integration testing
+- Configure monitoring/alerting for health endpoints
+- Update deployment documentation with new health check endpoints

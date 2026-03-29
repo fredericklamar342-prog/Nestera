@@ -27,11 +27,16 @@ pub struct UserRewards {
     // Anti-farming tracking
     pub daily_points_earned: u128, // Points earned today
     pub last_reward_day: u64,      // Last day rewards were earned (ledger day)
+
+    // Token rewards tracking
+    pub claimed_tokens: i128,   // Cumulative tokens already claimed
+    pub unclaimed_tokens: i128, // Tokens available to claim
 }
 
 #[contracttype]
 pub enum RewardsDataKey {
     Config,
     UserLedger(Address),
-    AllUsers, // Tracks all users with rewards for ranking
+    AllUsers,    // Tracks all users with rewards for ranking
+    RewardToken, // The token contract address used for distributing rewards
 }

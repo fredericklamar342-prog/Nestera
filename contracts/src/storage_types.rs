@@ -149,6 +149,10 @@ pub enum DataKey {
     ConfigInitialized,
     /// Treasury allocation config (reserve/rewards/operations percentages)
     AllocationConfig,
+    /// Treasury security limits for admin withdrawals
+    TreasurySecurityConfig,
+    /// Daily treasury withdrawal tracker (timestamp + amount)
+    TreasuryDailyWithdrawal,
     /// Early break fee (basis points) for goal saves
     EarlyBreakFeeBps,
     /// Fee recipient for protocol/treasury fees
@@ -202,6 +206,8 @@ pub enum DataKey {
     LockRate(u64),
     /// Maps (plan_type, plan_id) to disabled status
     DisabledStrategy(PlanType, u64),
+    /// Stores the native protocol token metadata (name, symbol, decimals, supply, treasury)
+    TokenMetadata,
 }
 
 /// Payload structure that the admin signs off-chain

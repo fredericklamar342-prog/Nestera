@@ -6,7 +6,10 @@ import { ClaimsModule } from '../src/modules/claims/claims.module';
 import { DisputesModule } from '../src/modules/disputes/disputes.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MedicalClaim } from '../src/modules/claims/entities/medical-claim.entity';
-import { Dispute, DisputeMessage } from '../src/modules/disputes/entities/dispute.entity';
+import {
+  Dispute,
+  DisputeMessage,
+} from '../src/modules/disputes/entities/dispute.entity';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 
 describe('Admin Analytics E2E', () => {

@@ -36,7 +36,11 @@ export class AdminSavingsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a savings product (admin)' })
   @ApiBody({ type: CreateProductDto })
-  @ApiResponse({ status: 201, description: 'Product created', type: SavingsProduct })
+  @ApiResponse({
+    status: 201,
+    description: 'Product created',
+    type: SavingsProduct,
+  })
   @ApiResponse({ status: 400, description: 'Invalid product data' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin required' })
   async createProduct(@Body() dto: CreateProductDto): Promise<SavingsProduct> {
@@ -46,7 +50,11 @@ export class AdminSavingsController {
   @Patch('products/:id')
   @ApiOperation({ summary: 'Update a savings product (admin)' })
   @ApiBody({ type: UpdateProductDto })
-  @ApiResponse({ status: 200, description: 'Product updated', type: SavingsProduct })
+  @ApiResponse({
+    status: 200,
+    description: 'Product updated',
+    type: SavingsProduct,
+  })
   @ApiResponse({ status: 404, description: 'Product not found' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin required' })
   async updateProduct(

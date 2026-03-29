@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Copy,
   LayoutGrid,
+  History,
 } from "lucide-react";
 
 const navLinks = [
@@ -22,6 +23,7 @@ const navLinks = [
   { label: "Staking", href: "/dashboard/staking", icon: TrendingUp },
   { label: "Analytics", href: "/dashboard/analytics", icon: PieChart },
   { label: "Governance", href: "/dashboard/governance", icon: ShieldCheck },
+  { label: "Transactions", href: "/dashboard/transactions", icon: History },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

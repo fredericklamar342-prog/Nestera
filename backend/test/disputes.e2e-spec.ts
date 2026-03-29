@@ -4,7 +4,10 @@ import * as request from 'supertest';
 import { DisputesModule } from '../src/modules/disputes/disputes.module';
 import { ClaimsModule } from '../src/modules/claims/claims.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Dispute, DisputeMessage } from '../src/modules/disputes/entities/dispute.entity';
+import {
+  Dispute,
+  DisputeMessage,
+} from '../src/modules/disputes/entities/dispute.entity';
 import { MedicalClaim } from '../src/modules/claims/entities/medical-claim.entity';
 
 describe('Disputes E2E', () => {
@@ -30,7 +33,13 @@ describe('Disputes E2E', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
     await app.init();
 
     // Create a claim first

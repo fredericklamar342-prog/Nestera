@@ -13,6 +13,6 @@ export class AnalyticsOverviewDto {
   @ApiProperty({ example: 187 })
   totalUsers: number;
 
-  @ApiProperty({ example: 45000.50 })
+  @ApiProperty({ example: 45000.5 })
   totalClaimAmount: number;
 }

@@ -42,7 +42,8 @@ export class BlockchainController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Status of all RPC endpoints including current active endpoint',
+    description:
+      'Status of all RPC endpoints including current active endpoint',
   })
   getRpcStatus() {
     return this.stellarService.getEndpointsStatus();

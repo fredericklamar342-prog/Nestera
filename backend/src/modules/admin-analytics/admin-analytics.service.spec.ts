@@ -3,6 +3,10 @@ import { AdminAnalyticsService } from './admin-analytics.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { MedicalClaim } from '../claims/entities/medical-claim.entity';
 import { Dispute } from '../disputes/entities/dispute.entity';
+import { SavingsProduct } from '../savings/entities/savings-product.entity';
+import { ProtocolMetrics } from './entities/protocol-metrics.entity';
+import { OracleService } from './services/oracle.service';
+import { SavingsService } from '../blockchain/savings.service';
 
 describe('AdminAnalyticsService', () => {
   let service: AdminAnalyticsService;
@@ -19,12 +23,51 @@ describe('AdminAnalyticsService', () => {
     count: jest.fn(),
   };
 
+  const mockSavingsProductRepository = {
+    find: jest.fn(),
+  };
+
+  const mockProtocolMetricsRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+  };
+
+  const mockOracleService = {
+    getAssetPrice: jest.fn(),
+  };
+
+  const mockSavingsService = {
+    getVaultTotalAssets: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AdminAnalyticsService,
-        { provide: getRepositoryToken(MedicalClaim), useValue: mockClaimRepository },
-        { provide: getRepositoryToken(Dispute), useValue: mockDisputeRepository },
+        {
+          provide: getRepositoryToken(MedicalClaim),
+          useValue: mockClaimRepository,
+        },
+        {
+          provide: getRepositoryToken(Dispute),
+          useValue: mockDisputeRepository,
+        },
+        {
+          provide: getRepositoryToken(SavingsProduct),
+          useValue: mockSavingsProductRepository,
+        },
+        {
+          provide: getRepositoryToken(ProtocolMetrics),
+          useValue: mockProtocolMetricsRepository,
+        },
+        {
+          provide: OracleService,
+          useValue: mockOracleService,
+        },
+        {
+          provide: SavingsService,
+          useValue: mockSavingsService,
+        },
       ],
     }).compile();
 

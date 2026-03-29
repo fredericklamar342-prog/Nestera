@@ -13,7 +13,7 @@ import { User } from '../../user/entities/user.entity';
 
 export enum SavingsGoalStatus {
   IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED   = 'COMPLETED',
+  COMPLETED = 'COMPLETED',
 }
 
 // ── Optional JSONB metadata shape ──────────────────────────────────────────────

@@ -50,6 +50,12 @@ export class User {
   @Column({ type: 'uuid', nullable: true })
   defaultSavingsProductId: string;
 
+  @Column({ nullable: true, unique: true })
+  walletAddress: string;
+
+  @Column({ nullable: true })
+  nonce: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

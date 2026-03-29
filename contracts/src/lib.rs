@@ -17,8 +17,10 @@ mod invariants;
 mod lock;
 
 pub mod rewards;
+pub mod staking;
 mod storage_types;
 pub mod strategy;
+pub mod token;
 pub mod treasury;
 mod ttl;
 mod upgrade;
@@ -165,6 +167,10 @@ impl NesteraContract {
         env.storage().instance().set(&DataKey::Initialized, &true);
         env.storage().persistent().set(&DataKey::Paused, &false);
 
+        // Initialize native protocol token (supply assigned to admin/deployer as treasury)
+        token::initialize_token(&env, admin.clone(), 1_000_000_000_0000000)
+            .unwrap_or_else(|e| panic_with_error!(&env, e));
+
         // Extend TTL for paused state
         ttl::extend_config_ttl(&env, &DataKey::Paused);
 
@@ -193,14 +199,6 @@ impl NesteraContract {
         env.crypto()
             .ed25519_verify(&admin_public_key, &payload_bytes, &signature);
         true
-    }
-
-    pub fn mint(env: Env, payload: MintPayload, signature: BytesN<64>) -> i128 {
-        Self::verify_signature(env.clone(), payload.clone(), signature);
-        let amount = payload.amount;
-        env.events()
-            .publish((symbol_short!("mint"), payload.user), amount);
-        amount
     }
 
     pub fn is_initialized(env: Env) -> bool {
@@ -766,6 +764,156 @@ impl NesteraContract {
             .unwrap_or(0)
     }
 
+    /// Returns the native protocol token metadata (name, symbol, decimals, total_supply, treasury).
+    pub fn get_token_metadata(env: Env) -> Result<token::TokenMetadata, SavingsError> {
+        token::get_token_metadata(&env)
+    }
+
+    // ========== Token Minting & Burning Functions (#376, #377) ==========
+
+    /// Mints new tokens to the specified address.
+    /// Only callable by governance or rewards module.
+    /// Updates total supply and emits TokenMinted event.
+    ///
+    /// # Arguments
+    /// * `caller` - Address calling the function (must be governance or rewards)
+    /// * `to` - Address to receive the minted tokens
+    /// * `amount` - Amount of tokens to mint (must be positive)
+    ///
+    /// # Returns
+    /// * `Ok(i128)` - New total supply after minting
+    /// * `Err(SavingsError)` if unauthorized, invalid amount, or overflow
+    pub fn mint_tokens(
+        env: Env,
+        caller: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<i128, SavingsError> {
+        caller.require_auth();
+
+        // Check if caller is governance or admin
+        let is_governance = crate::governance::validate_admin_or_governance(&env, &caller).is_ok();
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(SavingsError::Unauthorized)?;
+        let is_admin = admin == caller;
+
+        if !is_governance && !is_admin {
+            return Err(SavingsError::Unauthorized);
+        }
+
+        token::mint(&env, to, amount)
+    }
+
+    /// Burns tokens from the specified address.
+    /// Reduces total supply and emits TokenBurned event.
+    ///
+    /// # Arguments
+    /// * `env` - Contract environment
+    /// * `from` - Address to burn tokens from
+    /// * `amount` - Amount of tokens to burn (must be positive)
+    ///
+    /// # Returns
+    /// * `Ok(i128)` - New total supply after burning
+    /// * `Err(SavingsError)` if invalid amount or underflow
+    pub fn burn(env: Env, from: Address, amount: i128) -> Result<i128, SavingsError> {
+        from.require_auth();
+        token::burn(&env, from, amount)
+    }
+
+    // ========== Staking Functions (#442) ==========
+
+    /// Initializes staking configuration (admin only)
+    pub fn init_staking_config(
+        env: Env,
+        admin: Address,
+        config: staking::storage_types::StakingConfig,
+    ) -> Result<(), SavingsError> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(SavingsError::Unauthorized)?;
+        stored_admin.require_auth();
+        if admin != stored_admin {
+            return Err(SavingsError::Unauthorized);
+        }
+        staking::storage::initialize_staking_config(&env, config)
+    }
+
+    /// Updates staking configuration (admin only)
+    pub fn update_staking_config(
+        env: Env,
+        admin: Address,
+        config: staking::storage_types::StakingConfig,
+    ) -> Result<(), SavingsError> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(SavingsError::Unauthorized)?;
+        stored_admin.require_auth();
+        if admin != stored_admin {
+            return Err(SavingsError::Unauthorized);
+        }
+        staking::storage::update_staking_config(&env, config)
+    }
+
+    /// Gets the staking configuration
+    pub fn get_staking_config(
+        env: Env,
+    ) -> Result<staking::storage_types::StakingConfig, SavingsError> {
+        staking::storage::get_staking_config(&env)
+    }
+
+    /// Stakes tokens for a user
+    pub fn stake(env: Env, user: Address, amount: i128) -> Result<i128, SavingsError> {
+        user.require_auth();
+        ensure_not_paused(&env)?;
+        crate::security::acquire_reentrancy_guard(&env)?;
+        let res = staking::storage::stake(&env, user, amount);
+        crate::security::release_reentrancy_guard(&env);
+        res
+    }
+
+    /// Unstakes tokens for a user
+    pub fn unstake(env: Env, user: Address, amount: i128) -> Result<(i128, i128), SavingsError> {
+        user.require_auth();
+        ensure_not_paused(&env)?;
+        crate::security::acquire_reentrancy_guard(&env)?;
+        let res = staking::storage::unstake(&env, user, amount);
+        crate::security::release_reentrancy_guard(&env);
+        res
+    }
+
+    /// Claims staking rewards for a user
+    pub fn claim_staking_rewards(env: Env, user: Address) -> Result<i128, SavingsError> {
+        user.require_auth();
+        ensure_not_paused(&env)?;
+        crate::security::acquire_reentrancy_guard(&env)?;
+        let res = staking::storage::claim_staking_rewards(&env, user);
+        crate::security::release_reentrancy_guard(&env);
+        res
+    }
+
+    /// Gets a user's stake information
+    pub fn get_user_stake(env: Env, user: Address) -> staking::storage_types::Stake {
+        staking::storage::get_user_stake(&env, &user)
+    }
+
+    /// Gets pending staking rewards for a user
+    pub fn get_pending_staking_rewards(env: Env, user: Address) -> Result<i128, SavingsError> {
+        staking::storage::update_rewards(&env)?;
+        staking::storage::calculate_pending_rewards(&env, &user)
+    }
+
+    /// Gets staking statistics (total_staked, total_rewards, reward_per_token)
+    pub fn get_staking_stats(env: Env) -> Result<(i128, i128, i128), SavingsError> {
+        staking::storage::get_staking_stats(&env)
+    }
+
     // ========== Rewards Functions ==========
 
     pub fn init_rewards_config(
@@ -873,6 +1021,47 @@ impl NesteraContract {
     pub fn redeem_points(env: Env, user: Address, amount: u128) -> Result<(), SavingsError> {
         user.require_auth();
         rewards::redemption::redeem_points(&env, user, amount)
+    }
+
+    /// Sets the token contract address used for distributing native token rewards (admin only).
+    pub fn set_reward_token(env: Env, admin: Address, token: Address) -> Result<(), SavingsError> {
+        let stored_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(SavingsError::Unauthorized)?;
+        stored_admin.require_auth();
+        if admin != stored_admin {
+            return Err(SavingsError::Unauthorized);
+        }
+        env.storage()
+            .instance()
+            .set(&rewards::storage_types::RewardsDataKey::RewardToken, &token);
+        Ok(())
+    }
+
+    /// Converts a user's accumulated points into claimable token rewards.
+    /// Must be called before claim_rewards.
+    pub fn convert_points_to_tokens(
+        env: Env,
+        user: Address,
+        points_to_convert: u128,
+        tokens_per_point: i128,
+    ) -> Result<i128, SavingsError> {
+        user.require_auth();
+        rewards::storage::convert_points_to_tokens(&env, user, points_to_convert, tokens_per_point)
+    }
+
+    /// Claims all unclaimed token rewards, transferring native tokens to the user.
+    /// Prevents double-claiming and emits RewardsClaimed event.
+    pub fn claim_rewards(env: Env, user: Address) -> Result<i128, SavingsError> {
+        user.require_auth();
+        ensure_not_paused(&env)?;
+        crate::security::acquire_reentrancy_guard(&env)?;
+        let contract_address = env.current_contract_address();
+        let res = rewards::storage::claim_rewards(&env, user, contract_address);
+        crate::security::release_reentrancy_guard(&env);
+        res
     }
 
     // ========== AutoSave Functions ==========
@@ -995,6 +1184,51 @@ impl NesteraContract {
     /// Returns the current treasury state
     pub fn get_treasury(env: Env) -> treasury::types::Treasury {
         treasury::get_treasury(&env)
+    }
+
+    /// Returns the unallocated treasury balance (fees pending allocation).
+    pub fn get_treasury_balance(env: Env) -> i128 {
+        treasury::get_treasury_balance(&env)
+    }
+
+    /// Returns the cumulative total of all protocol fees collected.
+    pub fn get_total_fees(env: Env) -> i128 {
+        treasury::get_total_fees(&env)
+    }
+
+    /// Returns the cumulative total of all yield credited to users.
+    pub fn get_total_yield(env: Env) -> i128 {
+        treasury::get_total_yield(&env)
+    }
+
+    /// Returns the current reserve sub-balance (allocated reserve funds).
+    pub fn get_reserve_balance(env: Env) -> i128 {
+        treasury::get_reserve_balance(&env)
+    }
+
+    /// Returns treasury withdrawal security limits.
+    pub fn get_treasury_limits(env: Env) -> treasury::types::TreasurySecurityConfig {
+        treasury::get_treasury_limits(&env)
+    }
+
+    /// Updates treasury withdrawal limits (admin only).
+    pub fn set_treasury_limits(
+        env: Env,
+        admin: Address,
+        max_withdrawal_per_tx: i128,
+        daily_withdrawal_cap: i128,
+    ) -> Result<treasury::types::TreasurySecurityConfig, SavingsError> {
+        treasury::set_treasury_limits(&env, &admin, max_withdrawal_per_tx, daily_withdrawal_cap)
+    }
+
+    /// Withdraws from a treasury pool with per-tx and daily caps (admin only).
+    pub fn withdraw_treasury(
+        env: Env,
+        admin: Address,
+        pool: treasury::types::TreasuryPool,
+        amount: i128,
+    ) -> Result<treasury::types::Treasury, SavingsError> {
+        treasury::withdraw_treasury(&env, &admin, pool, amount)
     }
 
     /// Allocates the unallocated treasury balance into reserves, rewards, and operations.
@@ -1269,7 +1503,11 @@ mod governance_tests;
 #[cfg(test)]
 mod rates_test;
 #[cfg(test)]
+mod staking_tests;
+#[cfg(test)]
 mod test;
+#[cfg(test)]
+mod token_tests;
 #[cfg(test)]
 mod transition_tests;
 #[cfg(test)]

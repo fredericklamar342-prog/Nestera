@@ -186,7 +186,7 @@ const RecentTransactionsWidget: React.FC = () => {
 
       <div className="mt-4 pt-3 border-t border-white/5">
         <a
-          href="#"
+          href="/dashboard/transactions"
           className="text-[#7fbfbf] hover:text-[#8ef4ef] text-sm font-semibold transition-colors"
         >
           View all history →

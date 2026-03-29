@@ -119,7 +119,7 @@ export class UserController {
   @Get('me/net-worth')
   async getNetWorth(@CurrentUser() user: { id: string }): Promise<NetWorthDto> {
     const userEntity = await this.userService.findById(user.id);
-    
+
     // If user has no public key, return zero balances
     if (!userEntity.publicKey) {
       return this.createZeroNetWorthResponse();
@@ -135,8 +135,10 @@ export class UserController {
     const totalNetWorth = walletBalance + totalSavings;
 
     // Calculate percentages
-    const walletPercentage = totalNetWorth > 0 ? (walletBalance / totalNetWorth) * 100 : 0;
-    const savingsPercentage = totalNetWorth > 0 ? (totalSavings / totalNetWorth) * 100 : 0;
+    const walletPercentage =
+      totalNetWorth > 0 ? (walletBalance / totalNetWorth) * 100 : 0;
+    const savingsPercentage =
+      totalNetWorth > 0 ? (totalSavings / totalNetWorth) * 100 : 0;
 
     return {
       walletBalance,

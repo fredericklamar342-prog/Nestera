@@ -9,7 +9,7 @@ import { AppModule } from './../src/app.module';
  * 1. PostgreSQL is running with credentials in DATABASE_URL env var
  * 2. Database schema is migrated
  * 3. Run: pnpm run test:e2e
- * 
+ *
  * For CI/CD, unit tests and build are the primary checks.
  */
 describe.skip('AppController (e2e)', () => {

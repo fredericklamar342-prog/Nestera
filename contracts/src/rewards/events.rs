@@ -67,6 +67,25 @@ pub fn emit_points_redeemed(env: &Env, user: Address, amount: u128) {
     );
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RewardsClaimed {
+    pub user: Address,
+    pub amount: i128,
+}
+
+/// Emits a RewardsClaimed event.
+pub fn emit_rewards_claimed(env: &Env, user: Address, amount: i128) {
+    let event = RewardsClaimed {
+        user: user.clone(),
+        amount,
+    };
+    env.events().publish(
+        (symbol_short!("rewards"), symbol_short!("claimed"), user),
+        event,
+    );
+}
+
 /// Emits a StreakUpdated event.
 pub fn emit_streak_updated(env: &Env, user: Address, streak: u32) {
     let event = StreakUpdated {

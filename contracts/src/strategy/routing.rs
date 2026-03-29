@@ -328,19 +328,6 @@ pub fn harvest_strategy(env: &Env, strategy_address: Address) -> Result<i128, Sa
         .ok_or(SavingsError::Underflow)?;
 
     // 6. Update accounting records
-    if treasury_fee > 0 {
-        let treasury_balance_key = DataKey::TotalBalance(config.treasury.clone());
-        let current_treasury: i128 = env
-            .storage()
-            .persistent()
-            .get(&treasury_balance_key)
-            .unwrap_or(0);
-        env.storage().persistent().set(
-            &treasury_balance_key,
-            &(current_treasury.checked_add(treasury_fee).unwrap()),
-        );
-    }
-
     if user_yield > 0 {
         let yield_key = DataKey::StrategyYield(strategy_address.clone());
         let current_yield: i128 = env.storage().persistent().get(&yield_key).unwrap_or(0);
@@ -364,7 +351,23 @@ pub fn harvest_strategy(env: &Env, strategy_address: Address) -> Result<i128, Sa
 
     env.events().publish(
         (symbol_short!("strat"), symbol_short!("harvest")),
-        (strategy_address, actual_yield, treasury_fee, user_yield),
+        (
+            strategy_address.clone(),
+            actual_yield,
+            treasury_fee,
+            user_yield,
+        ),
+    );
+
+    // Emit dedicated YieldDistributed event for frontend indexers
+    env.events().publish(
+        (symbol_short!("yld_dist"),),
+        (
+            strategy_address.clone(),
+            actual_yield,
+            treasury_fee,
+            user_yield,
+        ),
     );
 
     // Record performance fee and yield in treasury

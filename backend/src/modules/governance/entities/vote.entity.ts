@@ -10,8 +10,8 @@ import {
 import { GovernanceProposal } from './governance-proposal.entity';
 
 export enum VoteDirection {
-  AGAINST = 0,
-  FOR = 1,
+  AGAINST = 'AGAINST',
+  FOR = 'FOR',
 }
 
 @Entity('votes')
@@ -23,12 +23,11 @@ export class Vote {
   @Column()
   walletAddress: string;
 
-  /** 1 = For, 0 = Against */
-  @Column({ type: 'int' })
+  @Column({ type: 'enum', enum: VoteDirection })
   direction: VoteDirection;
 
-  @Column({ nullable: true, type: 'varchar' })
-  weight: string;
+  @Column({ type: 'decimal', precision: 18, scale: 8 })
+  weight: number;
 
   @ManyToOne(() => GovernanceProposal, (proposal) => proposal.votes, {
     onDelete: 'CASCADE',

@@ -1,7 +1,20 @@
-import { Controller, Get, Post, Patch, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DisputesService } from './disputes.service';
-import { CreateDisputeDto, UpdateDisputeDto, AddDisputeMessageDto } from './dto/dispute.dto';
+import {
+  CreateDisputeDto,
+  UpdateDisputeDto,
+  AddDisputeMessageDto,
+} from './dto/dispute.dto';
 import { Dispute, DisputeMessage } from './entities/dispute.entity';
 
 @ApiTags('disputes')
@@ -14,13 +27,19 @@ export class DisputesController {
   @ApiOperation({ summary: 'Open a new dispute' })
   @ApiResponse({ status: 201, description: 'Dispute created', type: Dispute })
   @ApiResponse({ status: 400, description: 'Invalid claim ID' })
-  async createDispute(@Body() createDisputeDto: CreateDisputeDto): Promise<Dispute> {
+  async createDispute(
+    @Body() createDisputeDto: CreateDisputeDto,
+  ): Promise<Dispute> {
     return await this.disputesService.createDispute(createDisputeDto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all disputes' })
-  @ApiResponse({ status: 200, description: 'List of disputes', type: [Dispute] })
+  @ApiResponse({
+    status: 200,
+    description: 'List of disputes',
+    type: [Dispute],
+  })
   async getAllDisputes(): Promise<Dispute[]> {
     return await this.disputesService.findAll();
   }
@@ -47,7 +66,11 @@ export class DisputesController {
   @Post(':id/messages')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add message/evidence to dispute' })
-  @ApiResponse({ status: 201, description: 'Message added', type: DisputeMessage })
+  @ApiResponse({
+    status: 201,
+    description: 'Message added',
+    type: DisputeMessage,
+  })
   @ApiResponse({ status: 404, description: 'Dispute not found' })
   async addMessage(
     @Param('id') id: string,

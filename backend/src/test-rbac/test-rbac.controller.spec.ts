@@ -36,7 +36,7 @@ describe('TestRbacController', () => {
     it('should return public message', () => {
       const result = controller.getPublicEndpoint();
       expect(result).toEqual({
-        message: 'This is a public endpoint accessible to anyone'
+        message: 'This is a public endpoint accessible to anyone',
       });
     });
   });
@@ -47,7 +47,7 @@ describe('TestRbacController', () => {
       const result = controller.getUserEndpoint(mockRequest);
       expect(result).toEqual({
         message: 'This endpoint requires USER role or higher',
-        user: mockRequest.user
+        user: mockRequest.user,
       });
     });
   });
@@ -58,7 +58,7 @@ describe('TestRbacController', () => {
       const result = controller.getAdminEndpoint(mockRequest);
       expect(result).toEqual({
         message: 'This endpoint requires ADMIN role only',
-        user: mockRequest.user
+        user: mockRequest.user,
       });
     });
   });
@@ -69,7 +69,7 @@ describe('TestRbacController', () => {
       const result = controller.getUserOrAdminEndpoint(mockRequest);
       expect(result).toEqual({
         message: 'This endpoint requires USER or ADMIN role',
-        user: mockRequest.user
+        user: mockRequest.user,
       });
     });
   });

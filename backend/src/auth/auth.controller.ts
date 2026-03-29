@@ -15,6 +15,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import {
   RegisterDto,
@@ -31,12 +32,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ auth: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Register a new email/password account' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
+  @Throttle({ auth: { limit: 5, ttl: 15 * 60 * 1000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login and receive a JWT' })
   login(@Body() dto: LoginDto) {
@@ -44,12 +47,14 @@ export class AuthController {
   }
 
   @Get('nonce')
+  @Throttle({ auth: { limit: 5, ttl: 15 * 60 * 1000 } })
   @ApiOperation({ summary: 'Generate a one-time nonce for wallet signature' })
   getNonce(@Query('publicKey') publicKey: string) {
     return this.authService.generateNonce(publicKey);
   }
 
   @Post('verify-signature')
+  @Throttle({ auth: { limit: 5, ttl: 15 * 60 * 1000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify wallet signature and receive a JWT' })
   verifySignature(@Body() dto: VerifySignatureDto) {
@@ -80,10 +85,18 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Wallet linked successfully' })
   @ApiResponse({ status: 400, description: 'Invalid public key format' })
-  @ApiResponse({ status: 401, description: 'Invalid or missing JWT / bad signature' })
-  @ApiResponse({ status: 409, description: 'Wallet already linked to an account' })
-  linkWallet(@Request() req: { user: { id: string } }, @Body() dto: LinkWalletDto) {
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or missing JWT / bad signature',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Wallet already linked to an account',
+  })
+  linkWallet(
+    @Request() req: { user: { id: string } },
+    @Body() dto: LinkWalletDto,
+  ) {
     return this.authService.linkWallet(req.user.id, dto);
   }
 }
-

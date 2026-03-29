@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MedicalClaim, ClaimStatus } from './entities/medical-claim.entity';
 import { CreateClaimDto } from './dto/create-claim.dto';
 import { HospitalIntegrationService } from '../hospital-integration/hospital-integration.service';
@@ -13,7 +14,8 @@ export class ClaimsService {
     @InjectRepository(MedicalClaim)
     private readonly claimsRepository: Repository<MedicalClaim>,
     private readonly hospitalIntegrationService: HospitalIntegrationService,
-  ) { }
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async createClaim(createClaimDto: CreateClaimDto): Promise<MedicalClaim> {
     const claim = this.claimsRepository.create({
@@ -40,18 +42,38 @@ export class ClaimsService {
       throw new Error('Claim not found');
     }
 
-    this.logger.log(`Verifying claim ${claimId} with hospital ${claim.hospitalId}`);
+    this.logger.log(
+      `Verifying claim ${claimId} with hospital ${claim.hospitalId}`,
+    );
 
     try {
-      const verification = await this.hospitalIntegrationService.verifyClaimWithHospital(
-        claim.hospitalId,
-        claimId,
-      );
+      const verification =
+        await this.hospitalIntegrationService.verifyClaimWithHospital(
+          claim.hospitalId,
+          claimId,
+        );
 
-      claim.status = verification.verified ? ClaimStatus.APPROVED : ClaimStatus.REJECTED;
+      const previousStatus = claim.status;
+      claim.status = verification.verified
+        ? ClaimStatus.APPROVED
+        : ClaimStatus.REJECTED;
       claim.notes = verification.notes || claim.notes;
 
-      return await this.claimsRepository.save(claim);
+      const updatedClaim = await this.claimsRepository.save(claim);
+
+      // Emit claim.updated event for notifications
+      if (previousStatus !== claim.status) {
+        this.eventEmitter.emit('claim.updated', {
+          userId: claim.patientId, // Assuming patientId is the userId
+          claimId: claim.id,
+          status: claim.status,
+          claimAmount: claim.claimAmount,
+          notes: claim.notes,
+          timestamp: new Date(),
+        });
+      }
+
+      return updatedClaim;
     } catch (error) {
       this.logger.error(`Failed to verify claim ${claimId}:`, error);
       throw error;
@@ -59,10 +81,16 @@ export class ClaimsService {
   }
 
   async fetchHospitalClaimData(hospitalId: string, claimId: string) {
-    return await this.hospitalIntegrationService.fetchClaimData(hospitalId, claimId);
+    return await this.hospitalIntegrationService.fetchClaimData(
+      hospitalId,
+      claimId,
+    );
   }
 
   async fetchPatientHistory(hospitalId: string, patientId: string) {
-    return await this.hospitalIntegrationService.fetchPatientHistory(hospitalId, patientId);
+    return await this.hospitalIntegrationService.fetchPatientHistory(
+      hospitalId,
+      patientId,
+    );
   }
 }
