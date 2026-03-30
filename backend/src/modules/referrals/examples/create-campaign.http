@@ -1,0 +1,135 @@
+### Create Default Campaign
+POST http://localhost:3001/admin/referrals/campaigns
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Default Referral Program",
+  "description": "Earn 10 tokens for each friend you refer who deposits at least 50 tokens",
+  "rewardAmount": 10,
+  "refereeRewardAmount": 5,
+  "minDepositAmount": 50,
+  "maxRewardsPerUser": 20
+}
+
+### Create Limited Time Campaign
+POST http://localhost:3001/admin/referrals/campaigns
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Spring 2026 Bonus Campaign",
+  "description": "Double rewards for referrals during spring!",
+  "rewardAmount": 20,
+  "refereeRewardAmount": 10,
+  "minDepositAmount": 100,
+  "maxRewardsPerUser": 10,
+  "startDate": "2026-03-01T00:00:00Z",
+  "endDate": "2026-06-01T00:00:00Z"
+}
+
+### Get All Campaigns
+GET http://localhost:3001/admin/referrals/campaigns
+Authorization: Bearer {{adminToken}}
+
+### Get Active Campaigns
+GET http://localhost:3001/admin/referrals/campaigns/active
+Authorization: Bearer {{adminToken}}
+
+### Update Campaign
+PUT http://localhost:3001/admin/referrals/campaigns/{{campaignId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "rewardAmount": 15,
+  "isActive": true
+}
+
+### Deactivate Campaign
+PUT http://localhost:3001/admin/referrals/campaigns/{{campaignId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+### Delete Campaign
+DELETE http://localhost:3001/admin/referrals/campaigns/{{campaignId}}
+Authorization: Bearer {{adminToken}}
+
+### Get All Referrals
+GET http://localhost:3001/admin/referrals/all
+Authorization: Bearer {{adminToken}}
+
+### Get Referrals by Status
+GET http://localhost:3001/admin/referrals/all?status=completed
+Authorization: Bearer {{adminToken}}
+
+### Get Referrals by Campaign
+GET http://localhost:3001/admin/referrals/all?campaignId={{campaignId}}
+Authorization: Bearer {{adminToken}}
+
+### Update Referral Status
+PUT http://localhost:3001/admin/referrals/{{referralId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "rewarded",
+  "rewardAmount": 10
+}
+
+### Mark Referral as Fraudulent
+PUT http://localhost:3001/admin/referrals/{{referralId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "fraudulent",
+  "rewardAmount": 0
+}
+
+### Manually Distribute Rewards
+POST http://localhost:3001/admin/referrals/{{referralId}}/distribute-rewards
+Authorization: Bearer {{adminToken}}
+
+### Get Analytics Overview
+GET http://localhost:3001/admin/referrals/analytics/overview
+Authorization: Bearer {{adminToken}}
+
+### User: Generate Referral Code
+POST http://localhost:3001/referrals/generate
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{}
+
+### User: Generate Referral Code for Specific Campaign
+POST http://localhost:3001/referrals/generate
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "campaignId": "{{campaignId}}"
+}
+
+### User: Get Referral Stats
+GET http://localhost:3001/referrals/stats
+Authorization: Bearer {{userToken}}
+
+### User: Get My Referrals
+GET http://localhost:3001/referrals/my-referrals
+Authorization: Bearer {{userToken}}
+
+### Register with Referral Code
+POST http://localhost:3001/auth/register
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com",
+  "password": "password123",
+  "name": "New User",
+  "referralCode": "ABC12345"
+}

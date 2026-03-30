@@ -20,6 +20,8 @@ import { DepositHandler } from './event-handlers/deposit.handler';
 import { WithdrawHandler } from './event-handlers/withdraw.handler';
 import { YieldHandler } from './event-handlers/yield.handler';
 import { IndexerService } from './indexer.service';
+import { BalanceSyncService } from './balance-sync.service';
+import { ProtocolMetrics } from '../admin-analytics/entities/protocol-metrics.entity';
 
 @Global()
 @Module({
@@ -38,6 +40,7 @@ import { IndexerService } from './indexer.service';
       User,
       UserSubscription,
       SavingsProduct,
+      ProtocolMetrics,
     ]),
   ],
   controllers: [BlockchainController, StellarEventListenerController],
@@ -50,6 +53,7 @@ import { IndexerService } from './indexer.service';
     DepositHandler,
     WithdrawHandler,
     YieldHandler,
+    BalanceSyncService,
   ],
   exports: [
     StellarService,
@@ -60,6 +64,7 @@ import { IndexerService } from './indexer.service';
     DepositHandler,
     WithdrawHandler,
     YieldHandler,
+    BalanceSyncService,
   ],
 })
 export class BlockchainModule {}

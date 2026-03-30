@@ -62,6 +62,8 @@ export class SavingsProduct {
 
   @Column({ type: 'uuid', nullable: true })
   previousVersionId: string | null;
+  @Column('decimal', { precision: 14, scale: 2, nullable: true })
+  maxCapacity: number | null;
 
   @Column({ default: true })
   isActive: boolean;

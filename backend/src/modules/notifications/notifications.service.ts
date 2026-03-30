@@ -8,6 +8,7 @@ import { MailService } from '../mail/mail.service';
 import { User } from '../user/entities/user.entity';
 import { WaitlistEntry } from '../savings/entities/waitlist-entry.entity';
 import { WaitlistEvent } from '../savings/entities/waitlist-event.entity';
+import { Role } from '../../common/enums/role.enum';
 
 export interface SweepCompletedEvent {
   userId: string;
@@ -421,6 +422,48 @@ export class NotificationsService {
     } catch (error) {
       this.logger.error(
         `Error handling waitlist availability for product ${event.productId}`,
+        error,
+      );
+    }
+  }
+
+  @OnEvent('savings.capacity.threshold')
+  async handleCapacityAlert(event: {
+    productId: string;
+    utilizationPercentage: number;
+    isFull: boolean;
+  }) {
+    try {
+      const admins = await this.userRepository.find({
+        where: { role: Role.ADMIN },
+        select: ['id'],
+      });
+
+      if (!admins.length) {
+        return;
+      }
+
+      const title = event.isFull
+        ? 'Savings product auto-deactivated'
+        : 'Savings product nearing capacity';
+      const message = event.isFull
+        ? `Product ${event.productId} reached maximum capacity and was auto-deactivated.`
+        : `Product ${event.productId} is ${event.utilizationPercentage}% utilized.`;
+
+      await Promise.all(
+        admins.map((admin) =>
+          this.createNotification({
+            userId: admin.id,
+            type: NotificationType.ADMIN_CAPACITY_ALERT,
+            title,
+            message,
+            metadata: event,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error processing savings.capacity.threshold for product ${event.productId}`,
         error,
       );
     }

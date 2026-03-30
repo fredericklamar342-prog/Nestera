@@ -34,9 +34,11 @@ import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
 import { SavingsProductDto } from './dto/savings-product.dto';
 import { ProductDetailsDto } from './dto/product-details.dto';
+import { RecommendationResponseDto } from './dto/recommendation-response.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RpcThrottleGuard } from '../../common/guards/rpc-throttle.guard';
+import { RecommendationService } from './services/recommendation.service';
 import {
   SavingsGoalProgress,
   UserSubscriptionWithLiveBalance,
@@ -45,7 +47,10 @@ import {
 @ApiTags('savings')
 @Controller('savings')
 export class SavingsController {
-  constructor(private readonly savingsService: SavingsService) {}
+  constructor(
+    private readonly savingsService: SavingsService,
+    private readonly recommendationService: RecommendationService,
+  ) {}
 
   @Get('products')
   @UseInterceptors(CacheInterceptor)
@@ -93,7 +98,7 @@ export class SavingsController {
     description: 'Soroban RPC request timeout',
   })
   async getProductDetails(@Param('id') id: string): Promise<ProductDetailsDto> {
-    const { product, totalAssets } =
+    const { product, totalAssets, capacity } =
       await this.savingsService.findProductWithLiveData(id);
 
     const totalAssetsXlm = totalAssets / 10_000_000;
@@ -112,6 +117,11 @@ export class SavingsController {
       contractId: product.contractId,
       totalAssets,
       totalAssetsXlm,
+      maxCapacity: capacity.maxCapacity,
+      utilizedCapacity: capacity.utilizedCapacity,
+      availableCapacity: capacity.availableCapacity,
+      utilizationPercentage: capacity.utilizationPercentage,
+      isFull: capacity.isFull,
       riskLevel: product.riskLevel || RiskLevel.LOW,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,

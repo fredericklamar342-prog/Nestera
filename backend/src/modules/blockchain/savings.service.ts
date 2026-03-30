@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import {
   Account,
   Address,
@@ -21,7 +23,10 @@ export interface SavingsBalance {
 export class SavingsService {
   private readonly logger = new Logger(SavingsService.name);
 
-  constructor(private readonly stellarService: StellarService) {}
+  constructor(
+    private readonly stellarService: StellarService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+  ) {}
 
   /**
    * Fetch total assets from a Soroban vault contract
@@ -63,17 +68,37 @@ export class SavingsService {
    * @returns Object containing flexible, locked, and total savings balances
    */
   async getUserSavingsBalance(publicKey: string): Promise<SavingsBalance> {
+    // Check cache for native balance first
+    const cacheKey = `balance:${publicKey}:native`;
+    try {
+      const cached = await this.cacheManager.get<string>(cacheKey);
+      if (typeof cached === 'string') {
+        try {
+          const parsed = JSON.parse(cached) as { balance: string };
+          const flexibleBalance = Math.floor(
+            parseFloat(parsed.balance) * 10_000_000,
+          );
+          return {
+            flexible: flexibleBalance,
+            locked: 0,
+            total: flexibleBalance,
+          };
+        } catch {
+          // fall through to Horizon
+        }
+      }
+    } catch (cacheErr) {
+      this.logger.warn(
+        `Cache read failed for ${cacheKey}: ${(cacheErr as Error).message}`,
+      );
+    }
+
     try {
       const horizonServer = this.stellarService.getHorizonServer();
 
       // Fetch account to get current state
-      const account = await horizonServer
-        .accounts()
-        .accountId(publicKey)
-        .call();
+      await horizonServer.accounts().accountId(publicKey).call();
 
-      // For now, return a structure based on available data
-      // In a production system, this would query the actual Soroban contract
       const flexibleBalance = 0;
       const lockedBalance = 0;
 
@@ -84,7 +109,7 @@ export class SavingsService {
       };
     } catch (error) {
       this.logger.warn(
-        `Could not fetch savings for ${publicKey}: ${error.message}`,
+        `Could not fetch savings for ${publicKey}: ${(error as Error).message}`,
       );
       return {
         flexible: 0,
@@ -156,6 +181,25 @@ export class SavingsService {
     publicKey: string,
     asset: string = 'native',
   ): Promise<number> {
+    const cacheKey = `balance:${publicKey}:${asset ?? 'native'}`;
+
+    // Cache-aside: check cache first
+    try {
+      const cached = await this.cacheManager.get<string>(cacheKey);
+      if (typeof cached === 'string') {
+        try {
+          const parsed = JSON.parse(cached) as { balance: string };
+          return Math.floor(parseFloat(parsed.balance) * 10_000_000);
+        } catch {
+          // fall through to Horizon
+        }
+      }
+    } catch (cacheErr) {
+      this.logger.warn(
+        `Cache read failed for ${cacheKey}: ${(cacheErr as Error).message}`,
+      );
+    }
+
     try {
       const horizonServer = this.stellarService.getHorizonServer();
       const account = await horizonServer
@@ -163,24 +207,42 @@ export class SavingsService {
         .accountId(publicKey)
         .call();
 
+      let balance: number;
+
       if (asset === 'native') {
         // Return native balance in stroops (1 XLM = 10,000,000 stroops)
-        return Math.floor(parseFloat(account.balances[0].balance) * 10_000_000);
+        balance = Math.floor(
+          parseFloat(account.balances[0].balance) * 10_000_000,
+        );
+      } else {
+        // Find specific asset balance
+        const assetBalance = account.balances.find(
+          (b) => 'asset_code' in b && b.asset_code === asset,
+        );
+        balance =
+          assetBalance && 'balance' in assetBalance
+            ? Math.floor(parseFloat(assetBalance.balance) * 10_000_000)
+            : 0;
       }
 
-      // Find specific asset balance
-      const assetBalance = account.balances.find(
-        (balance) => 'asset_code' in balance && balance.asset_code === asset,
-      );
-
-      if (assetBalance && 'balance' in assetBalance) {
-        return Math.floor(parseFloat(assetBalance.balance) * 10_000_000);
+      // Populate cache after Horizon fetch
+      try {
+        const balanceStr = (balance / 10_000_000).toFixed(7);
+        await this.cacheManager.set(
+          cacheKey,
+          JSON.stringify({ balance: balanceStr, updatedAt: new Date().toISOString() }),
+          300_000,
+        );
+      } catch (cacheErr) {
+        this.logger.warn(
+          `Cache write failed for ${cacheKey}: ${(cacheErr as Error).message}`,
+        );
       }
 
-      return 0;
+      return balance;
     } catch (error) {
       this.logger.warn(
-        `Could not fetch wallet balance for ${publicKey}: ${error.message}`,
+        `Could not fetch wallet balance for ${publicKey}: ${(error as Error).message}`,
       );
       return 0;
     }

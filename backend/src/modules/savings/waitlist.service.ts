@@ -38,7 +38,11 @@ export class WaitlistService {
     if (!product) throw new NotFoundException('Product not found');
 
     // If product is available for subscription, reject — no waitlist needed
-    if (product.isActive && product.capacity == null) {
+    if (
+      product.isActive &&
+      product.capacity == null &&
+      product.maxCapacity == null
+    ) {
       throw new BadRequestException('Product is currently available');
     }
 

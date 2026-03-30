@@ -1,5 +1,5 @@
-import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsStellarPublicKey } from '../../common/validators/is-stellar-key.validator';
 
 export class RegisterDto {
@@ -16,6 +16,11 @@ export class RegisterDto {
   @ApiProperty({ example: 'Alice', required: false })
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional({ example: 'ABC12345', description: 'Referral code from another user' })
+  @IsOptional()
+  @IsString()
+  referralCode?: string;
 }
 
 export class LoginDto {

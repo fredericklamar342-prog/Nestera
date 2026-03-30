@@ -9,6 +9,9 @@ import { Dispute } from '../disputes/entities/dispute.entity';
 import { SavingsProduct } from '../savings/entities/savings-product.entity';
 import { ProtocolMetrics } from './entities/protocol-metrics.entity';
 import { BlockchainModule } from '../blockchain/blockchain.module';
+import { User } from '../user/entities/user.entity';
+import { UserSubscription } from '../savings/entities/user-subscription.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
 
 @Module({
   imports: [
@@ -17,6 +20,9 @@ import { BlockchainModule } from '../blockchain/blockchain.module';
       Dispute,
       SavingsProduct,
       ProtocolMetrics,
+      User,
+      UserSubscription,
+      Transaction,
     ]),
     HttpModule,
     BlockchainModule,

@@ -3,6 +3,8 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../modules/user/user.service';
@@ -17,12 +19,14 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly eventEmitter: EventEmitter2,
     // @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
@@ -37,6 +41,14 @@ export class AuthService {
       ...dto,
       password: hashedPassword,
     });
+
+    // Apply referral code if provided
+    if (dto.referralCode) {
+      this.eventEmitter.emit('user.signup-with-referral', {
+        userId: user.id,
+        referralCode: dto.referralCode,
+      });
+    }
 
     return {
       user,

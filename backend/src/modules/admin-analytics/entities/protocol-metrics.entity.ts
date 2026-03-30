@@ -27,6 +27,9 @@ export class ProtocolMetrics {
   @Column('jsonb', { nullable: true })
   productBreakdown: Record<string, any> | null;
 
+  @Column('jsonb', { nullable: true })
+  connectionMetrics: Record<string, any> | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

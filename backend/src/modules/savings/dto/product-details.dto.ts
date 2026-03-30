@@ -49,6 +49,23 @@ export class ProductDetailsDto {
   @ApiProperty({ description: 'Live total assets formatted as XLM' })
   totalAssetsXlm: number;
 
+  @ApiPropertyOptional({
+    description: 'Maximum liquidity-backed capacity for the product',
+  })
+  maxCapacity: number | null;
+
+  @ApiProperty({ description: 'Current utilized capacity amount' })
+  utilizedCapacity: number;
+
+  @ApiProperty({ description: 'Remaining capacity amount' })
+  availableCapacity: number;
+
+  @ApiProperty({ description: 'Capacity utilization percentage' })
+  utilizationPercentage: number;
+
+  @ApiProperty({ description: 'Whether the product is fully utilized' })
+  isFull: boolean;
+
   @ApiProperty({ description: 'Product creation timestamp' })
   createdAt: Date;
 

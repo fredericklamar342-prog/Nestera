@@ -11,6 +11,7 @@ import {
 } from './common/versioning/versioning.middleware';
 import { VersionAnalyticsInterceptor } from './common/versioning/version-analytics.interceptor';
 import { VersionAnalyticsService } from './common/versioning/version-analytics.service';
+import { GracefulShutdownService } from './common/services/graceful-shutdown.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -57,13 +58,38 @@ async function bootstrap() {
     SwaggerModule.setup(`api/v${version}/docs`, app, document);
   }
 
-  await app.listen(port || 3001);
+  const server = await app.listen(port || 3001);
   const logger = app.get(Logger);
   logger.log(`Application is running on: http://localhost:${port}/api`);
   logger.log(
     `Swagger v1 docs (deprecated): http://localhost:${port}/api/v1/docs`,
   );
   logger.log(`Swagger v2 docs: http://localhost:${port}/api/v2/docs`);
+
+  // Setup graceful shutdown
+  const gracefulShutdown = app.get(GracefulShutdownService);
+
+  const signals = ['SIGTERM', 'SIGINT'];
+  signals.forEach((signal) => {
+    process.on(signal, async () => {
+      logger.log(`Received ${signal}, starting graceful shutdown...`);
+      server.close(async () => {
+        await app.close();
+        process.exit(0);
+      });
+    });
+  });
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught Exception:', error);
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+  });
 }
 
 bootstrap().catch((error: unknown) => {
