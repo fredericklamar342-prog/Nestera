@@ -239,6 +239,7 @@ export class SavingsService {
         tenureMonths: product.tenureMonths,
         contractId: product.contractId,
         isActive: product.isActive,
+        maxSubscriptionsPerUser: product.maxSubscriptionsPerUser,
         version: product.version ?? 1,
         riskLevel: product.riskLevel || RiskLevel.LOW,
         tvlAmount,
@@ -382,6 +383,7 @@ export class SavingsService {
     userId: string,
     productId: string,
     amount: number,
+    overrideLimits = false,
   ): Promise<UserSubscription> {
     const product = await this.findOneProduct(productId);
     await this.syncCapacityState(product);
@@ -399,6 +401,44 @@ export class SavingsService {
       );
     }
 
+    if (!overrideLimits) {
+      const activeSubscriptionsForUser =
+        await this.subscriptionRepository.count({
+          where: {
+            userId,
+            productId: product.id,
+            status: SubscriptionStatus.ACTIVE,
+          },
+        });
+
+      if (
+        product.maxSubscriptionsPerUser != null &&
+        activeSubscriptionsForUser >= product.maxSubscriptionsPerUser
+      ) {
+        throw new ConflictException(
+          `Subscription limit reached. You can only hold ${product.maxSubscriptionsPerUser} active subscriptions for this product.`,
+        );
+      }
+
+      if (product.capacity != null) {
+        const activeSubscriptionsForProduct =
+          await this.subscriptionRepository.count({
+            where: {
+              productId: product.id,
+              status: SubscriptionStatus.ACTIVE,
+            },
+          });
+
+        if (activeSubscriptionsForProduct >= product.capacity) {
+          const { position } = await this.waitlistService.joinWaitlist(
+            userId,
+            product.id,
+          );
+          throw new ConflictException(
+            `This savings product is full. You have been added to the waitlist at position ${position}.`,
+          );
+        }
+      }
     const capacity = await this.getProductCapacitySnapshot(productId);
     if (
       capacity.maxCapacity != null &&

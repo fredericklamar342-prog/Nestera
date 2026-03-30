@@ -96,6 +96,8 @@ export class CreateProductDto {
   riskLevel?: RiskLevel;
 
   @ApiPropertyOptional({
+    example: 3,
+    description: 'Maximum active subscriptions allowed per user',
     example: 1,
     description: 'Initial product version',
     default: 1,
@@ -103,6 +105,7 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
+  maxSubscriptionsPerUser?: number;
   version?: number;
 
   @ApiPropertyOptional({ default: true })

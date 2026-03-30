@@ -88,6 +88,25 @@ export class AdminSavingsController {
     return this.adminSavingsService.getSubscribers(id, opts);
   }
 
+  @Post('products/:id/subscriptions/override')
+  @ApiOperation({
+    summary: 'Create a subscription with admin override for limit checks',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Subscription created with admin override',
+  })
+  async createSubscriptionOverride(
+    @Param('id') id: string,
+    @Body() body: { userId: string; amount: number },
+    @CurrentUser() _admin: { id: string; email: string },
+  ) {
+    return await this.savingsService.subscribe(
+      body.userId,
+      id,
+      body.amount,
+      true,
+    );
   @Post('experiments')
   @ApiOperation({ summary: 'Create a savings product experiment (admin)' })
   @ApiResponse({ status: 201, description: 'Experiment created' })
