@@ -35,6 +35,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { TestRbacModule } from './test-rbac/test-rbac.module';
 import { TestThrottlingModule } from './test-throttling/test-throttling.module';
+import { ApiVersioningModule } from './common/versioning/api-versioning.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
@@ -73,6 +75,14 @@ const envValidationSchema = Joi.object({
   KYC_PROVIDER_BASE_URL: Joi.string().uri().optional(),
   KYC_PROVIDER_API_KEY: Joi.string().optional(),
   KYC_PII_ENCRYPTION_KEY: Joi.string().min(16).optional(),
+
+  BACKUP_S3_BUCKET: Joi.string().optional(),
+  BACKUP_S3_REGION: Joi.string().optional(),
+  BACKUP_AWS_ACCESS_KEY_ID: Joi.string().optional(),
+  BACKUP_AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
+  BACKUP_ENCRYPTION_KEY: Joi.string().length(64).optional(), // 32-byte key as hex
+  BACKUP_RETENTION_DAYS: Joi.number().integer().min(1).default(30).optional(),
+  BACKUP_TMP_DIR: Joi.string().optional(),
 });
 
 @Module({
@@ -178,6 +188,8 @@ const envValidationSchema = Joi.object({
     TransactionsModule,
     TestRbacModule,
     TestThrottlingModule,
+    ApiVersioningModule,
+    BackupModule,
     CommonModule,
     ThrottlerModule.forRoot([
       {

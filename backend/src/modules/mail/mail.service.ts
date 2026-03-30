@@ -178,4 +178,12 @@ export class MailService {
       );
     }
   }
+
+  async sendRawMail(to: string, subject: string, text: string): Promise<void> {
+    try {
+      await this.mailerService.sendMail({ to, subject, text });
+    } catch (error) {
+      this.logger.error(`Failed to send raw email to ${to}`, error);
+    }
+  }
 }

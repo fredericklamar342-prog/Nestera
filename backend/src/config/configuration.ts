@@ -54,6 +54,15 @@ export default () => ({
     providerApiKey: process.env.KYC_PROVIDER_API_KEY,
     piiEncryptionKey: process.env.KYC_PII_ENCRYPTION_KEY,
   },
+  backup: {
+    s3Bucket: process.env.BACKUP_S3_BUCKET,
+    s3Region: process.env.BACKUP_S3_REGION ?? 'us-east-1',
+    awsAccessKeyId: process.env.BACKUP_AWS_ACCESS_KEY_ID,
+    awsSecretAccessKey: process.env.BACKUP_AWS_SECRET_ACCESS_KEY,
+    encryptionKey: process.env.BACKUP_ENCRYPTION_KEY, // 64 hex chars = 32 bytes
+    retentionDays: parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10),
+    tmpDir: process.env.BACKUP_TMP_DIR ?? '/tmp',
+  },
   hospital: {
     endpoints: {
       // Hospital endpoints from environment variables
