@@ -11,6 +11,9 @@ import { AdminController } from './admin.controller';
 import { AdminSavingsController } from './admin-savings.controller';
 import { AdminWaitlistController } from './admin-waitlist.controller';
 import { AdminUsersController } from './admin-users.controller';
+import { AdminWithdrawalController } from './admin-withdrawal.controller';
+import { AdminWithdrawalService } from './admin-withdrawal.service';
+
 import { CircuitBreakerController } from './circuit-breaker.controller';
 import { AdminDisputesController } from './admin-disputes.controller';
 import { AdminAuditLogsController } from './admin-audit-logs.controller';
@@ -29,6 +32,8 @@ import { User } from '../user/entities/user.entity';
 import { UserSubscription } from '../savings/entities/user-subscription.entity';
 import { SavingsProduct } from '../savings/entities/savings-product.entity';
 import { LedgerTransaction } from '../blockchain/entities/transaction.entity';
+import { WithdrawalRequest } from '../savings/entities/withdrawal-request.entity';
+import { AuditLog } from '../../common/entities/audit-log.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { Dispute, DisputeTimeline } from '../disputes/entities/dispute.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -43,6 +48,8 @@ import { Notification } from '../notifications/entities/notification.entity';
       UserSubscription,
       SavingsProduct,
       LedgerTransaction,
+      WithdrawalRequest,
+      AuditLog,
       Transaction,
       AdminTransactionNote,
       Dispute,
@@ -63,11 +70,7 @@ import { Notification } from '../notifications/entities/notification.entity';
     AdminSavingsController,
     AdminWaitlistController,
     AdminUsersController,
-    CircuitBreakerController,
-    AdminDisputesController,
-    AdminAuditLogsController,
-    AdminNotificationsController,
-    AdminTransactionsController,
+    AdminWithdrawalController,
   ],
   providers: [
     AdminUsersService,
@@ -76,6 +79,7 @@ import { Notification } from '../notifications/entities/notification.entity';
     AdminAuditLogsService,
     AdminNotificationsService,
     AdminTransactionsService,
+    AdminWithdrawalService
   ],
   exports: [AdminDisputesService, AdminAuditLogsService],
 })

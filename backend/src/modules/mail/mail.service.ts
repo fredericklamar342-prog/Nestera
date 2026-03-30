@@ -179,6 +179,58 @@ export class MailService {
     }
   }
 
+  async sendWithdrawalApprovedEmail(
+    userEmail: string,
+    name: string,
+    amount: string,
+    penalty: string,
+    netAmount: string,
+  ): Promise<void> {
+    try {
+      await this.mailerService.sendMail({
+        to: userEmail,
+        subject: 'Withdrawal Request Approved',
+        template: './withdrawal-approved',
+        context: {
+          name: name || 'User',
+          amount,
+          penalty,
+          netAmount,
+        },
+      });
+      this.logger.log(`Withdrawal approved email sent to ${userEmail}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send withdrawal approved email to ${userEmail}`,
+        error,
+      );
+    }
+  }
+
+  async sendWithdrawalRejectedEmail(
+    userEmail: string,
+    name: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      await this.mailerService.sendMail({
+        to: userEmail,
+        subject: 'Withdrawal Request Rejected',
+        template: './withdrawal-rejected',
+        context: {
+          name: name || 'User',
+          reason,
+        },
+      });
+      this.logger.log(`Withdrawal rejected email sent to ${userEmail}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to send withdrawal rejected email to ${userEmail}`,
+        error,
+      );
+    }
+  }
+
   async sendRawMail(to: string, subject: string, text: string): Promise<void> {
     try {
       await this.mailerService.sendMail({ to, subject, text });
