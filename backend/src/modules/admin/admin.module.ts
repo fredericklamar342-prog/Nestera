@@ -8,12 +8,16 @@ import { AdminController } from './admin.controller';
 import { AdminSavingsController } from './admin-savings.controller';
 import { AdminWaitlistController } from './admin-waitlist.controller';
 import { AdminUsersController } from './admin-users.controller';
+import { AdminWithdrawalController } from './admin-withdrawal.controller';
 import { AdminUsersService } from './admin-users.service';
 import { AdminSavingsService } from './admin-savings.service';
+import { AdminWithdrawalService } from './admin-withdrawal.service';
 import { User } from '../user/entities/user.entity';
 import { UserSubscription } from '../savings/entities/user-subscription.entity';
 import { SavingsProduct } from '../savings/entities/savings-product.entity';
 import { LedgerTransaction } from '../blockchain/entities/transaction.entity';
+import { WithdrawalRequest } from '../savings/entities/withdrawal-request.entity';
+import { AuditLog } from '../../common/entities/audit-log.entity';
 
 @Module({
   imports: [
@@ -22,6 +26,8 @@ import { LedgerTransaction } from '../blockchain/entities/transaction.entity';
       UserSubscription,
       SavingsProduct,
       LedgerTransaction,
+      WithdrawalRequest,
+      AuditLog,
     ]),
     UserModule,
     SavingsModule,
@@ -33,7 +39,8 @@ import { LedgerTransaction } from '../blockchain/entities/transaction.entity';
     AdminSavingsController,
     AdminWaitlistController,
     AdminUsersController,
+    AdminWithdrawalController,
   ],
-  providers: [AdminUsersService, AdminSavingsService],
+  providers: [AdminUsersService, AdminSavingsService, AdminWithdrawalService],
 })
 export class AdminModule {}
