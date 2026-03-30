@@ -114,21 +114,19 @@ export class TieredThrottlerGuard extends ThrottlerGuard {
     return `tiered-throttle:${ip}`;
   }
 
-  protected async handleRequest(
-    requestProps: {
-      context: ExecutionContext;
-      limit: number;
-      ttl: number;
-      throttler: { name: string; limit: number; ttl: number };
-      blockDuration: number;
-      getTracker: (req: Record<string, any>) => Promise<string>;
-      generateKey: (
-        context: ExecutionContext,
-        tracker: string,
-        throttlerName: string,
-      ) => string;
-    },
-  ): Promise<boolean> {
+  protected async handleRequest(requestProps: {
+    context: ExecutionContext;
+    limit: number;
+    ttl: number;
+    throttler: { name: string; limit: number; ttl: number };
+    blockDuration: number;
+    getTracker: (req: Record<string, any>) => Promise<string>;
+    generateKey: (
+      context: ExecutionContext,
+      tracker: string,
+      throttlerName: string,
+    ) => string;
+  }): Promise<boolean> {
     const { context, throttler } = requestProps;
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
@@ -172,10 +170,7 @@ export class TieredThrottlerGuard extends ThrottlerGuard {
           timestamp: new Date(),
         });
 
-        response.setHeader(
-          'Retry-After',
-          Math.ceil(tierLimits.ttl / 1000),
-        );
+        response.setHeader('Retry-After', Math.ceil(tierLimits.ttl / 1000));
         response.setHeader('X-RateLimit-Remaining', 0);
         response.setHeader(
           'X-RateLimit-Reset',

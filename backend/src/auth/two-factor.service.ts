@@ -82,10 +82,7 @@ export class TwoFactorService {
     return { enabled: true, message: '2FA has been enabled successfully' };
   }
 
-  async validateLogin(
-    userId: string,
-    token: string,
-  ): Promise<boolean> {
+  async validateLogin(userId: string, token: string): Promise<boolean> {
     const user = await this.findUser(userId);
 
     if (!user.twoFactorEnabled || !user.twoFactorSecret) {
@@ -129,9 +126,7 @@ export class TwoFactorService {
     return { message: '2FA has been disabled' };
   }
 
-  async adminDisable(
-    targetUserId: string,
-  ): Promise<{ message: string }> {
+  async adminDisable(targetUserId: string): Promise<{ message: string }> {
     const user = await this.findUser(targetUserId);
 
     if (!user.twoFactorEnabled) {
@@ -154,9 +149,7 @@ export class TwoFactorService {
     return { enabled: user.twoFactorEnabled };
   }
 
-  async completeLogin(
-    userId: string,
-  ): Promise<{ accessToken: string }> {
+  async completeLogin(userId: string): Promise<{ accessToken: string }> {
     const user = await this.findUser(userId);
     return {
       accessToken: this.jwtService.sign({

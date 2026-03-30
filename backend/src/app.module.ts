@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
@@ -17,6 +18,9 @@ import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { BlockchainModule } from './modules/blockchain/blockchain.module';
 import { UserModule } from './modules/user/user.module';
+import { KycModule } from './modules/kyc/kyc.module';
+import { ChallengesModule } from './modules/challenges/challenges.module';
+import { AlertsModule } from './modules/alerts/alerts.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MailModule } from './modules/mail/mail.module';
 import { RedisCacheModule } from './modules/cache/cache.module';
@@ -32,6 +36,8 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { TestRbacModule } from './test-rbac/test-rbac.module';
 import { TestThrottlingModule } from './test-throttling/test-throttling.module';
+import { ApiVersioningModule } from './common/versioning/api-versioning.module';
+import { BackupModule } from './modules/backup/backup.module';
 
 const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
@@ -67,6 +73,17 @@ const envValidationSchema = Joi.object({
   MAIL_USER: Joi.string().optional(),
   MAIL_PASS: Joi.string().optional(),
   MAIL_FROM: Joi.string().optional(),
+  KYC_PROVIDER_BASE_URL: Joi.string().uri().optional(),
+  KYC_PROVIDER_API_KEY: Joi.string().optional(),
+  KYC_PII_ENCRYPTION_KEY: Joi.string().min(16).optional(),
+
+  BACKUP_S3_BUCKET: Joi.string().optional(),
+  BACKUP_S3_REGION: Joi.string().optional(),
+  BACKUP_AWS_ACCESS_KEY_ID: Joi.string().optional(),
+  BACKUP_AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
+  BACKUP_ENCRYPTION_KEY: Joi.string().length(64).optional(), // 32-byte key as hex
+  BACKUP_RETENTION_DAYS: Joi.number().integer().min(1).default(30).optional(),
+  BACKUP_TMP_DIR: Joi.string().optional(),
 });
 
 @Module({
@@ -115,6 +132,7 @@ const envValidationSchema = Joi.object({
       },
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
@@ -155,6 +173,9 @@ const envValidationSchema = Joi.object({
     HealthModule,
     BlockchainModule,
     UserModule,
+    KycModule,
+    ChallengesModule,
+    AlertsModule,
     AdminModule,
     MailModule,
     WebhooksModule,
@@ -169,6 +190,8 @@ const envValidationSchema = Joi.object({
     ReferralsModule,
     TestRbacModule,
     TestThrottlingModule,
+    ApiVersioningModule,
+    BackupModule,
     CommonModule,
     ThrottlerModule.forRoot([
       {

@@ -121,7 +121,10 @@ export class AuthController {
       'Returns a TOTP secret, otpauth:// URL for QR code generation, and backup codes. ' +
       'Call POST /auth/2fa/verify with a valid token to activate.',
   })
-  @ApiResponse({ status: 201, description: 'Secret and backup codes generated' })
+  @ApiResponse({
+    status: 201,
+    description: 'Secret and backup codes generated',
+  })
   @ApiResponse({ status: 400, description: '2FA already enabled' })
   enable2fa(@Request() req: { user: { id: string } }) {
     return this.twoFactorService.enable(req.user.id);

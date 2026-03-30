@@ -1,8 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { User } from '../user/entities/user.entity';
+import {
+  UserSubscription,
+  SubscriptionStatus,
+} from '../savings/entities/user-subscription.entity';
 import { ProcessedStellarEvent } from '../blockchain/entities/processed-event.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
 import {
   LedgerTransaction,
   LedgerTransactionType,
@@ -16,6 +22,7 @@ import {
   AssetAllocationItemDto,
 } from './dto/asset-allocation.dto';
 import { YieldBreakdownDto } from './dto/yield-breakdown.dto';
+import { RebalancingExecution } from './entities/rebalancing-execution.entity';
 
 @Injectable()
 export class AnalyticsService {
@@ -31,6 +38,14 @@ export class AnalyticsService {
     private readonly blockchainSavingsService: BlockchainSavingsService,
     private readonly stellarService: StellarService,
     private readonly oracleService: OracleService,
+    @Optional()
+    @InjectRepository(UserSubscription)
+    private readonly subscriptionRepository?: Repository<UserSubscription>,
+    @Optional()
+    @InjectRepository(RebalancingExecution)
+    private readonly rebalancingRepository?: Repository<RebalancingExecution>,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   /**
@@ -254,6 +269,135 @@ export class AnalyticsService {
     };
   }
 
+  async getRebalancingSuggestions(
+    userId: string,
+    riskProfile: 'conservative' | 'balanced' | 'growth' = 'balanced',
+  ) {
+    if (!this.subscriptionRepository) {
+      return {
+        riskProfile,
+        totalValue: 0,
+        currentAllocation: [],
+        optimalAllocation: this.getOptimalAllocation(riskProfile),
+        recommendations: [],
+        backtest: this.buildBacktestSnapshot([], []),
+      };
+    }
+
+    const subscriptions = await this.subscriptionRepository.find({
+      where: {
+        userId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      relations: ['product'],
+    });
+
+    if (!subscriptions.length) {
+      return {
+        riskProfile,
+        totalValue: 0,
+        currentAllocation: [],
+        optimalAllocation: this.getOptimalAllocation(riskProfile),
+        recommendations: [],
+        backtest: this.buildBacktestSnapshot([], []),
+      };
+    }
+
+    const totalValue = subscriptions.reduce(
+      (sum, item) => sum + Number(item.amount),
+      0,
+    );
+
+    const currentByRisk = this.aggregateCurrentRiskAllocation(subscriptions);
+    const optimal = this.getOptimalAllocation(riskProfile);
+
+    const recommendations = optimal.map((target) => {
+      const currentPct = currentByRisk[target.risk] || 0;
+      const deltaPct = Number((target.targetPct - currentPct).toFixed(2));
+      const deltaAmount = Number(((deltaPct / 100) * totalValue).toFixed(2));
+
+      return {
+        risk: target.risk,
+        currentPct,
+        targetPct: target.targetPct,
+        deltaPct,
+        amountToMove: deltaAmount,
+        action:
+          deltaAmount > 0 ? 'increase' : deltaAmount < 0 ? 'decrease' : 'hold',
+      };
+    });
+
+    if (
+      this.notificationsService &&
+      recommendations.some((rec) => Math.abs(rec.deltaPct) >= 10)
+    ) {
+      await this.notificationsService.createNotification({
+        userId,
+        type: NotificationType.REBALANCING_RECOMMENDED,
+        title: 'Portfolio rebalancing recommended',
+        message:
+          'Your savings allocation has drifted from target risk mix. Review suggestions.',
+        metadata: { riskProfile, recommendations },
+      });
+    }
+
+    return {
+      riskProfile,
+      totalValue: Number(totalValue.toFixed(2)),
+      currentAllocation: Object.entries(currentByRisk).map(([risk, pct]) => ({
+        risk,
+        pct,
+      })),
+      optimalAllocation: optimal,
+      recommendations,
+      backtest: this.buildBacktestSnapshot(recommendations, subscriptions),
+    };
+  }
+
+  async executeRebalancing(
+    userId: string,
+    riskProfile: 'conservative' | 'balanced' | 'growth' = 'balanced',
+  ) {
+    if (!this.rebalancingRepository) {
+      return {
+        executionId: null,
+        status: 'SKIPPED',
+        executedAt: new Date(),
+        recommendation: await this.getRebalancingSuggestions(
+          userId,
+          riskProfile,
+        ),
+      };
+    }
+
+    const suggestion = await this.getRebalancingSuggestions(
+      userId,
+      riskProfile,
+    );
+
+    const execution = this.rebalancingRepository.create({
+      userId,
+      riskProfile,
+      recommendation: suggestion,
+      executionResult: {
+        executedAt: new Date().toISOString(),
+        plan: suggestion.recommendations.filter(
+          (item: { action: string }) => item.action !== 'hold',
+        ),
+      },
+      status: 'EXECUTED',
+    });
+
+    const saved = await this.rebalancingRepository.save(execution);
+
+    return {
+      executionId: saved.id,
+      status: saved.status,
+      executedAt: saved.createdAt,
+      recommendation: suggestion,
+    };
+  }
+
   private getPoolName(poolId: string): string {
     // Map pool IDs to human-readable names
     const poolNames: Record<string, string> = {
@@ -263,6 +407,96 @@ export class AnalyticsService {
     };
 
     return poolNames[poolId] || poolId;
+  }
+
+  private aggregateCurrentRiskAllocation(subscriptions: UserSubscription[]) {
+    const total = subscriptions.reduce(
+      (sum, subscription) => sum + Number(subscription.amount),
+      0,
+    );
+
+    const riskTotals: Record<string, number> = {
+      LOW: 0,
+      MEDIUM: 0,
+      HIGH: 0,
+    };
+
+    for (const subscription of subscriptions) {
+      const risk = subscription.product?.riskLevel || 'LOW';
+      riskTotals[risk] = (riskTotals[risk] || 0) + Number(subscription.amount);
+    }
+
+    if (total === 0) {
+      return { LOW: 0, MEDIUM: 0, HIGH: 0 };
+    }
+
+    return {
+      LOW: Number((((riskTotals.LOW || 0) / total) * 100).toFixed(2)),
+      MEDIUM: Number((((riskTotals.MEDIUM || 0) / total) * 100).toFixed(2)),
+      HIGH: Number((((riskTotals.HIGH || 0) / total) * 100).toFixed(2)),
+    };
+  }
+
+  private getOptimalAllocation(
+    riskProfile: 'conservative' | 'balanced' | 'growth',
+  ) {
+    if (riskProfile === 'conservative') {
+      return [
+        { risk: 'LOW', targetPct: 70 },
+        { risk: 'MEDIUM', targetPct: 25 },
+        { risk: 'HIGH', targetPct: 5 },
+      ];
+    }
+
+    if (riskProfile === 'growth') {
+      return [
+        { risk: 'LOW', targetPct: 20 },
+        { risk: 'MEDIUM', targetPct: 35 },
+        { risk: 'HIGH', targetPct: 45 },
+      ];
+    }
+
+    return [
+      { risk: 'LOW', targetPct: 45 },
+      { risk: 'MEDIUM', targetPct: 35 },
+      { risk: 'HIGH', targetPct: 20 },
+    ];
+  }
+
+  private buildBacktestSnapshot(
+    recommendations: Array<{ risk: string; targetPct: number }> = [],
+    subscriptions: UserSubscription[] = [],
+  ) {
+    const weightedApy = subscriptions.reduce((sum, entry) => {
+      const amount = Number(entry.amount);
+      const apy = Number(entry.product?.interestRate || 0);
+      return sum + amount * apy;
+    }, 0);
+
+    const principal = subscriptions.reduce(
+      (sum, entry) => sum + Number(entry.amount),
+      0,
+    );
+    const currentExpectedYield = principal > 0 ? weightedApy / principal : 0;
+
+    const suggestedExpectedYield = recommendations.reduce((sum, rec) => {
+      const benchmarkByRisk: Record<string, number> = {
+        LOW: 5,
+        MEDIUM: 8,
+        HIGH: 12,
+      };
+      return sum + (rec.targetPct / 100) * benchmarkByRisk[rec.risk];
+    }, 0);
+
+    return {
+      timeframe: '90d-simulated',
+      currentAnnualizedApy: Number(currentExpectedYield.toFixed(2)),
+      suggestedAnnualizedApy: Number(suggestedExpectedYield.toFixed(2)),
+      estimatedImprovementPct: Number(
+        (suggestedExpectedYield - currentExpectedYield).toFixed(2),
+      ),
+      note: 'Backtest uses risk-bucket benchmark APYs over a simulated 90-day horizon.',
+    };
   }
 
   private extractAmount(event: ProcessedStellarEvent): number {

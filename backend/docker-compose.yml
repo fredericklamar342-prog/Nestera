@@ -7,10 +7,20 @@ services:
       POSTGRES_USER: nestera
       POSTGRES_PASSWORD: nestera
       POSTGRES_DB: nestera
+      # Enable WAL archiving for point-in-time recovery
+      POSTGRES_INITDB_ARGS: "--wal-segsize=16"
+    command: >
+      postgres
+        -c wal_level=replica
+        -c archive_mode=on
+        -c archive_command='cp %p /var/lib/postgresql/wal_archive/%f'
+        -c max_wal_senders=3
+        -c wal_keep_size=512
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_wal_archive:/var/lib/postgresql/wal_archive
 
   api:
     build: .
@@ -25,3 +35,5 @@ services:
 
 volumes:
   postgres_data:
+  postgres_wal_archive:
+

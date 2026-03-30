@@ -8,12 +8,25 @@ import {
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { ConfigService } from '@nestjs/config';
 import { Cache } from 'cache-manager';
-import { SavingsProduct, RiskLevel } from './entities/savings-product.entity';
+import {
+  SavingsProduct,
+  SavingsProductType,
+  RiskLevel,
+} from './entities/savings-product.entity';
 import {
   UserSubscription,
   SubscriptionStatus,
 } from './entities/user-subscription.entity';
 import { SavingsGoal, SavingsGoalStatus } from './entities/savings-goal.entity';
+import {
+  WithdrawalRequest,
+  WithdrawalStatus,
+} from './entities/withdrawal-request.entity';
+import {
+  Transaction,
+  TxType,
+  TxStatus,
+} from '../transactions/entities/transaction.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SavingsProductDto } from './dto/savings-product.dto';
@@ -53,6 +66,10 @@ export class SavingsService {
     private readonly goalRepository: Repository<SavingsGoal>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(WithdrawalRequest)
+    private readonly withdrawalRepository: Repository<WithdrawalRequest>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     private readonly blockchainSavingsService: BlockchainSavingsService,
     private readonly predictiveEvaluatorService: PredictiveEvaluatorService,
     private readonly configService: ConfigService,
@@ -432,6 +449,177 @@ export class SavingsService {
     }
 
     await this.goalRepository.remove(goal);
+  }
+
+  async createWithdrawalRequest(
+    userId: string,
+    subscriptionId: string,
+    amount: number,
+    reason?: string,
+  ): Promise<WithdrawalRequest> {
+    const subscription = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId, userId },
+      relations: ['product'],
+    });
+
+    if (!subscription) {
+      throw new NotFoundException(
+        `Subscription ${subscriptionId} not found or does not belong to user`,
+      );
+    }
+
+    if (subscription.status !== SubscriptionStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Cannot withdraw from a non-active subscription',
+      );
+    }
+
+    if (amount > Number(subscription.amount)) {
+      throw new BadRequestException(
+        `Withdrawal amount exceeds subscription balance of ${subscription.amount}`,
+      );
+    }
+
+    // Calculate penalty for early withdrawal from locked (FIXED) products
+    const penalty = this.calculateEarlyWithdrawalPenalty(subscription, amount);
+    const netAmount = Number((amount - penalty).toFixed(7));
+
+    // Estimated completion: 1 hour for processing
+    const estimatedCompletionTime = new Date();
+    estimatedCompletionTime.setHours(estimatedCompletionTime.getHours() + 1);
+
+    const withdrawalRequest = this.withdrawalRepository.create({
+      userId,
+      subscriptionId,
+      amount,
+      penalty,
+      netAmount,
+      status: WithdrawalStatus.PENDING,
+      reason: reason || null,
+      estimatedCompletionTime,
+    });
+
+    const saved = await this.withdrawalRepository.save(withdrawalRequest);
+
+    // Process withdrawal asynchronously
+    this.processWithdrawal(saved.id).catch((error) => {
+      this.logger.error(
+        `Failed to process withdrawal ${saved.id}: ${(error as Error).message}`,
+      );
+    });
+
+    return saved;
+  }
+
+  private calculateEarlyWithdrawalPenalty(
+    subscription: UserSubscription,
+    amount: number,
+  ): number {
+    const product = subscription.product;
+
+    // No penalty for flexible products or matured subscriptions
+    if (product.type === SavingsProductType.FLEXIBLE) {
+      return 0;
+    }
+
+    // No penalty if the subscription has matured
+    if (subscription.endDate && new Date() >= new Date(subscription.endDate)) {
+      return 0;
+    }
+
+    // Early withdrawal penalty: 5% of the withdrawal amount for locked products
+    const EARLY_WITHDRAWAL_PENALTY_BPS = 500; // 5% in basis points
+    const penalty = (amount * EARLY_WITHDRAWAL_PENALTY_BPS) / 10_000;
+
+    return Number(penalty.toFixed(7));
+  }
+
+  private async processWithdrawal(withdrawalId: string): Promise<void> {
+    const withdrawal = await this.withdrawalRepository.findOne({
+      where: { id: withdrawalId },
+      relations: ['subscription', 'subscription.product'],
+    });
+
+    if (!withdrawal) {
+      throw new NotFoundException(`Withdrawal ${withdrawalId} not found`);
+    }
+
+    try {
+      // Update status to processing
+      withdrawal.status = WithdrawalStatus.PROCESSING;
+      await this.withdrawalRepository.save(withdrawal);
+
+      // Attempt on-chain withdrawal via Soroban contract
+      const contractId = withdrawal.subscription.product?.contractId;
+      const user = await this.userRepository.findOne({
+        where: { id: withdrawal.userId },
+        select: ['id', 'publicKey', 'email', 'name'],
+      });
+
+      if (contractId && user?.publicKey) {
+        try {
+          await this.blockchainSavingsService.invokeContractRead(
+            contractId,
+            'withdraw',
+            [],
+            user.publicKey,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `On-chain withdrawal simulation for ${withdrawalId}: ${(error as Error).message}`,
+          );
+        }
+      }
+
+      // Record in transaction ledger
+      const transaction = this.transactionRepository.create({
+        userId: withdrawal.userId,
+        type: TxType.WITHDRAW,
+        amount: String(withdrawal.netAmount),
+        status: TxStatus.COMPLETED,
+        publicKey: user?.publicKey || null,
+        metadata: {
+          withdrawalRequestId: withdrawal.id,
+          grossAmount: String(withdrawal.amount),
+          penalty: String(withdrawal.penalty),
+          netAmount: String(withdrawal.netAmount),
+          subscriptionId: withdrawal.subscriptionId,
+          reason: withdrawal.reason,
+        },
+      });
+      await this.transactionRepository.save(transaction);
+
+      // Update subscription amount
+      const newAmount =
+        Number(withdrawal.subscription.amount) - Number(withdrawal.amount);
+      await this.subscriptionRepository.update(withdrawal.subscriptionId, {
+        amount: Math.max(0, newAmount),
+        status:
+          newAmount <= 0
+            ? SubscriptionStatus.CANCELLED
+            : SubscriptionStatus.ACTIVE,
+      });
+
+      // Mark withdrawal as completed
+      withdrawal.status = WithdrawalStatus.COMPLETED;
+      withdrawal.txHash = transaction.txHash || null;
+      withdrawal.completedAt = new Date();
+      await this.withdrawalRepository.save(withdrawal);
+
+      // Emit event for notification
+      this.eventEmitter?.emit('withdrawal.completed', {
+        userId: withdrawal.userId,
+        withdrawalId: withdrawal.id,
+        amount: withdrawal.amount,
+        penalty: withdrawal.penalty,
+        netAmount: withdrawal.netAmount,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      withdrawal.status = WithdrawalStatus.FAILED;
+      await this.withdrawalRepository.save(withdrawal);
+      throw error;
+    }
   }
 
   private mapGoalWithProgress(

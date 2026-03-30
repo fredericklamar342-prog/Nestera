@@ -75,7 +75,7 @@ describe('Throttler Guard (e2e)', () => {
       const burstUrl = '/test-throttling/burst';
 
       // Make requests rapidly to trigger rate limit
-      const responses = [];
+      const responses: number[] = [];
       for (let i = 0; i < 105; i++) {
         const response = await request(app.getHttpServer()).get(burstUrl);
         responses.push(response.status);
@@ -95,7 +95,7 @@ describe('Throttler Guard (e2e)', () => {
       const skipUrl = '/test-throttling/skip';
 
       // Make many requests rapidly
-      const responses = [];
+      const responses: number[] = [];
       for (let i = 0; i < 120; i++) {
         const response = await request(app.getHttpServer()).get(skipUrl);
         responses.push(response.status);

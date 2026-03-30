@@ -35,6 +35,9 @@ export class User {
   @Column({ type: 'varchar', default: 'NOT_SUBMITTED' })
   kycStatus: 'NOT_SUBMITTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
+  @Column({ type: 'varchar', default: 'FREE' })
+  tier: 'FREE' | 'VERIFIED' | 'PREMIUM' | 'ENTERPRISE';
+
   @Column({ nullable: true })
   kycDocumentUrl: string;
 
@@ -64,6 +67,12 @@ export class User {
 
   @Column({ type: 'simple-array', nullable: true })
   twoFactorBackupCodes: string[] | null;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLoginAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

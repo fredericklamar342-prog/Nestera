@@ -28,6 +28,8 @@ import { SavingsProduct, RiskLevel } from './entities/savings-product.entity';
 import { UserSubscription } from './entities/user-subscription.entity';
 import { SavingsGoal } from './entities/savings-goal.entity';
 import { SubscribeDto } from './dto/subscribe.dto';
+import { WithdrawDto } from './dto/withdraw.dto';
+import { WithdrawalResponseDto } from './dto/withdrawal-response.dto';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
 import { SavingsProductDto } from './dto/savings-product.dto';
@@ -137,6 +139,49 @@ export class SavingsController {
       dto.productId,
       dto.amount,
     );
+  }
+
+  @Post('withdraw')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Request withdrawal from a savings subscription',
+    description:
+      'Creates a withdrawal request with penalty calculation for early withdrawal from locked products',
+  })
+  @ApiBody({ type: WithdrawDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Withdrawal request created',
+    type: WithdrawalResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request or insufficient balance',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Subscription not found' })
+  async withdraw(
+    @Body() dto: WithdrawDto,
+    @CurrentUser() user: { id: string; email: string },
+  ): Promise<WithdrawalResponseDto> {
+    const withdrawal = await this.savingsService.createWithdrawalRequest(
+      user.id,
+      dto.subscriptionId,
+      dto.amount,
+      dto.reason,
+    );
+
+    return {
+      withdrawalId: withdrawal.id,
+      amount: Number(withdrawal.amount),
+      penalty: Number(withdrawal.penalty),
+      netAmount: Number(withdrawal.netAmount),
+      status: withdrawal.status.toLowerCase(),
+      estimatedCompletionTime:
+        withdrawal.estimatedCompletionTime?.toISOString() || '',
+    };
   }
 
   @Get('my-subscriptions')

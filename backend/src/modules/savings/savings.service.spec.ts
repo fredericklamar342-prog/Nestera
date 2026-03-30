@@ -9,6 +9,8 @@ import { UserSubscription } from './entities/user-subscription.entity';
 import { SavingsGoal, SavingsGoalStatus } from './entities/savings-goal.entity';
 import { User } from '../user/entities/user.entity';
 import { SavingsService as BlockchainSavingsService } from '../blockchain/savings.service';
+import { WithdrawalRequest } from './entities/withdrawal-request.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
 
 describe('SavingsService', () => {
   let service: SavingsService;
@@ -74,6 +76,14 @@ describe('SavingsService', () => {
         {
           provide: getRepositoryToken(User),
           useValue: userRepository,
+        },
+        {
+          provide: getRepositoryToken(WithdrawalRequest),
+          useValue: { create: jest.fn(), save: jest.fn(), findOne: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Transaction),
+          useValue: { create: jest.fn((v) => v), save: jest.fn() },
         },
         {
           provide: BlockchainSavingsService,

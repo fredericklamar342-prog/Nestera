@@ -1,6 +1,8 @@
 import {
   Controller,
   Get,
+  Post,
+  Body,
   Query,
   UseGuards,
   NotFoundException,
@@ -15,6 +17,8 @@ import { AnalyticsService } from './analytics.service';
 import { PortfolioTimelineQueryDto } from './dto/portfolio-timeline-query.dto';
 import { AssetAllocationDto } from './dto/asset-allocation.dto';
 import { YieldBreakdownDto } from './dto/yield-breakdown.dto';
+import { RebalancingQueryDto } from './dto/rebalancing-query.dto';
+import { ExecuteRebalancingDto } from './dto/execute-rebalancing.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -95,5 +99,38 @@ export class AnalyticsController {
     @CurrentUser() user: { id: string },
   ): Promise<YieldBreakdownDto> {
     return this.analyticsService.getYieldBreakdown(user.id);
+  }
+
+  @Get('rebalancing-suggestions')
+  @ApiOperation({
+    summary: 'Get risk-adjusted portfolio rebalancing suggestions',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rebalancing recommendation payload',
+  })
+  async getRebalancingSuggestions(
+    @CurrentUser() user: { id: string },
+    @Query() query: RebalancingQueryDto,
+  ) {
+    return this.analyticsService.getRebalancingSuggestions(
+      user.id,
+      query.riskProfile || 'balanced',
+    );
+  }
+
+  @Post('rebalancing-suggestions/execute')
+  @ApiOperation({
+    summary: 'Execute one-click portfolio rebalancing',
+  })
+  @ApiResponse({ status: 201, description: 'Rebalancing execution recorded' })
+  async executeRebalancing(
+    @CurrentUser() user: { id: string },
+    @Body() body: ExecuteRebalancingDto,
+  ) {
+    return this.analyticsService.executeRebalancing(
+      user.id,
+      body.riskProfile || 'balanced',
+    );
   }
 }
